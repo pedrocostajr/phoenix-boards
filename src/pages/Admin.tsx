@@ -1,0 +1,321 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Zap, LogOut, Settings, Check, X, Users, Trash2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { AddUserForm } from '@/components/AddUserForm';
+
+interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  role: string;
+  approved: boolean;
+  created_at: string;
+  avatar_url: string | null;
+}
+
+const Admin = () => {
+  const { user: currentUser, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    checkAdminAccess();
+    fetchUsers();
+  }, []);
+
+  const checkAdminAccess = async () => {
+    if (!currentUser?.email || currentUser.email !== 'contato@leadsign.com.br') {
+      toast({
+        title: "Acesso negado",
+        description: "Você não tem permissão para acessar esta área.",
+        variant: "destructive",
+      });
+      navigate('/dashboard');
+      return;
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar usuários",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approveUser = async (userId: string) => {
+    try {
+      console.log('🔄 Aprovando usuário:', userId);
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ approved: true })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('❌ Erro ao aprovar usuário:', error);
+        throw error;
+      }
+
+      console.log('✅ Usuário aprovado com sucesso');
+
+      toast({
+        title: "Usuário aprovado!",
+        description: "O usuário foi aprovado com sucesso.",
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error('❌ Erro na aprovação:', error);
+      toast({
+        title: "Erro ao aprovar usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const rejectUser = async (userId: string) => {
+    try {
+      console.log('🔄 Removendo aprovação do usuário:', userId);
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ approved: false })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('❌ Erro ao reprovar usuário:', error);
+        throw error;
+      }
+
+      console.log('✅ Aprovação removida com sucesso');
+
+      toast({
+        title: "Aprovação removida!",
+        description: "A aprovação do usuário foi removida.",
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error('❌ Erro na reprovação:', error);
+      toast({
+        title: "Erro ao remover aprovação",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Tem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário "${userName}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      console.log('🔄 Excluindo usuário:', userId);
+      
+      const { error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId }
+      });
+
+      if (error) {
+        console.error('❌ Erro ao excluir usuário:', error);
+        throw error;
+      }
+
+      console.log('✅ Usuário excluído com sucesso');
+
+      toast({
+        title: "Usuário excluído!",
+        description: "O usuário foi excluído permanentemente do sistema.",
+      });
+
+      fetchUsers();
+    } catch (error: any) {
+      console.error('❌ Erro na exclusão:', error);
+      toast({
+        title: "Erro ao excluir usuário",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
+      {/* Header */}
+      <header className="bg-card border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-2">
+              <Zap className="h-8 w-8 text-primary" />
+              <h1 className="text-xl font-bold">Phoenix Board - Administração</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                Admin: {currentUser?.email}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+                <Users className="h-4 w-4 mr-2" />
+                Dashboard
+              </Button>
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações
+              </Button>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold tracking-tight">Gerenciamento de Usuários</h2>
+          <p className="text-muted-foreground mt-1">
+            Aprove ou rejeite usuários cadastrados no sistema
+          </p>
+        </div>
+
+        {/* Add User Form */}
+        <AddUserForm onUserAdded={fetchUsers} />
+
+        {/* Users Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Lista de Usuários</CardTitle>
+            <CardDescription>
+              Usuários cadastrados no sistema. Aprove ou reprove conforme necessário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Função</TableHead>
+                  <TableHead>Data de Cadastro</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.full_name}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? 'Administrador' : 'Cliente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.approved ? 'default' : 'destructive'}>
+                        {user.approved ? 'Aprovado' : 'Pendente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {!user.approved ? (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => approveUser(user.user_id)}
+                              className="h-8"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Aprovar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteUser(user.user_id, user.full_name)}
+                              className="h-8"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Excluir
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => rejectUser(user.user_id)}
+                              className="h-8"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Reprovar
+                            </Button>
+                            {user.user_id !== currentUser?.id && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deleteUser(user.user_id, user.full_name)}
+                                className="h-8"
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Excluir
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {users.length === 0 && (
+              <div className="text-center py-8">
+                <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum usuário encontrado</h3>
+                <p className="text-muted-foreground">
+                  Ainda não há usuários cadastrados no sistema.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
+
+export default Admin;
