@@ -174,7 +174,7 @@ export const TaskCard = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card
         className="group relative overflow-hidden bg-white/70 backdrop-blur-sm border-white/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-xl"
         onClick={() => setShowDetails(true)}
