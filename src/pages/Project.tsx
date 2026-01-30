@@ -793,6 +793,16 @@ const Project = () => {
     createTask();
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const task = tasks.find(t => t.id === active.id);
+    setActiveTask(task || null);
+  };
+
+  const handleDragOver = (event: DragOverEvent) => {
+    // Logic for cross-column drag styling if needed
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high': return 'bg-red-500';
@@ -824,395 +834,374 @@ const Project = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-      {/* Header */}
-      <header className="bg-card border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar
-              </Button>
-              <div>
-                <h1 className="text-xl font-bold">{project.name}</h1>
-                <p className="text-sm text-muted-foreground">{project.description}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Board
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Criar Novo Board</DialogTitle>
-                    <DialogDescription>
-                      Crie um novo board para organizar suas tarefas
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="boardName">Nome do Board</Label>
-                      <Input
-                        id="boardName"
-                        value={newBoardName}
-                        onChange={(e) => setNewBoardName(e.target.value)}
-                        placeholder="Digite o nome do board"
-                      />
-                    </div>
-                    <Button onClick={createBoard} className="w-full">
-                      Criar Board
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Boards Tabs */}
-      <div className="border-b bg-card">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-4 py-3 overflow-x-auto">
-            {boards.map((board) => (
-              <div key={board.id} className="flex items-center gap-1">
-                <Button
-                  variant={selectedBoard?.id === board.id ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setSelectedBoard(board)}
-                  className="whitespace-nowrap"
-                >
-                  {board.name}
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setRenamingBoardId(board.id);
-                        setRenamingBoardName(board.name);
-                        setIsRenamingBoard(true);
-                      }}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Renomear Board
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => duplicateBoard(board.id, board.name)}
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Duplicar Board
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => deleteBoard(board.id, board.name)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir Board
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#0f1115] relative overflow-hidden">
+      {/* Premium Background Mesh Gradient */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/30 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/20 blur-[120px] rounded-full" />
+        <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-violet-600/10 blur-[120px] rounded-full animate-pulse" />
       </div>
 
-      {/* Rename Board Dialog */}
-      <Dialog open={isRenamingBoard} onOpenChange={setIsRenamingBoard}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Renomear Board</DialogTitle>
-            <DialogDescription>
-              Digite o novo nome para o board
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="renameBoardName">Novo Nome</Label>
-              <Input
-                id="renameBoardName"
-                value={renamingBoardName}
-                onChange={(e) => setRenamingBoardName(e.target.value)}
-                placeholder="Ex: Tarefas de Fevereiro"
-              />
-            </div>
-            <Button onClick={updateBoard} className="w-full">
-              Salvar Alterações
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {selectedBoard ? (
-          <>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">{selectedBoard.name}</h2>
-              <div className="flex gap-2">
+      <div className="relative z-10 flex flex-col h-screen">
+        {/* Header */}
+        <header className="bg-[#1a1d23]/80 backdrop-blur-xl border-b border-white/5 sticky top-0 z-50">
+          <div className="max-w-[1800px] mx-auto px-6">
+            <div className="flex justify-between items-center h-20">
+              <div className="flex items-center gap-6">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/dashboard')}
+                  className="hover:bg-white/5 text-muted-foreground hover:text-white rounded-full transition-all"
+                >
+                  <ArrowLeft className="h-5 w-5 mr-1" />
+                  Dashboard
+                </Button>
+                <div className="h-8 w-px bg-white/10" />
+                <div className="flex flex-col">
+                  <h1 className="text-2xl font-black tracking-tighter text-white uppercase">{project.name}</h1>
+                  {project.description && (
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest leading-none mt-1">{project.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+                  <Users className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+                  <Settings className="h-5 w-5" />
+                </Button>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nova Coluna
+                    <Button className="bg-primary hover:bg-primary/90 text-white font-bold px-6 rounded-full shadow-lg shadow-primary/20 transition-all active:scale-95">
+                      <Plus className="h-5 w-5 mr-2" />
+                      Novo Board
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="glass-morphism border-white/20">
                     <DialogHeader>
-                      <DialogTitle>Criar Nova Coluna</DialogTitle>
-                      <DialogDescription>
-                        Adicione uma nova coluna ao board
+                      <DialogTitle className="text-2xl font-black tracking-tight">Criar Novo Board</DialogTitle>
+                      <DialogDescription className="text-foreground/60 font-medium">
+                        Crie um novo board para organizar suas tarefas
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="columnName">Nome da Coluna</Label>
+                    <div className="space-y-6 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="boardName" className="font-bold text-sm tracking-wider uppercase ml-1">Nome do Board</Label>
                         <Input
-                          id="columnName"
-                          value={newColumnName}
-                          onChange={(e) => setNewColumnName(e.target.value)}
-                          placeholder="Digite o nome da coluna"
+                          id="boardName"
+                          value={newBoardName}
+                          onChange={(e) => setNewBoardName(e.target.value)}
+                          placeholder="Ex: Tarefas de Engenharia"
+                          className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
                         />
                       </div>
-                      <div>
-                        <Label htmlFor="columnColor">Cor da Coluna</Label>
-                        <Input
-                          id="columnColor"
-                          type="color"
-                          value={newColumnColor}
-                          onChange={(e) => setNewColumnColor(e.target.value)}
-                        />
-                      </div>
-                      <Button onClick={createColumn} className="w-full">
-                        Criar Coluna
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Nova Tarefa
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Criar Nova Tarefa</DialogTitle>
-                      <DialogDescription>
-                        Adicione uma nova tarefa ao board
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="taskTitle">Título da Tarefa</Label>
-                        <Input
-                          id="taskTitle"
-                          value={newTaskTitle}
-                          onChange={(e) => setNewTaskTitle(e.target.value)}
-                          placeholder="Digite o título da tarefa"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="taskDescription">Descrição</Label>
-                        <Textarea
-                          id="taskDescription"
-                          value={newTaskDescription}
-                          onChange={(e) => setNewTaskDescription(e.target.value)}
-                          placeholder="Digite a descrição da tarefa"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="taskColumn">Coluna</Label>
-                        <Select value={selectedColumnId} onValueChange={setSelectedColumnId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma coluna" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {columns.map((column) => (
-                              <SelectItem key={column.id} value={column.id}>
-                                {column.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="taskPriority">Prioridade</Label>
-                        <Select value={newTaskPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewTaskPriority(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Baixa</SelectItem>
-                            <SelectItem value="medium">Média</SelectItem>
-                            <SelectItem value="high">Alta</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button onClick={createTask} className="w-full">
-                        Criar Tarefa
+                      <Button onClick={createBoard} className="w-full h-12 bg-primary font-bold text-lg rounded-xl shadow-xl shadow-primary/10">
+                        Criar Board
                       </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
               </div>
             </div>
+          </div>
+        </header>
 
-            {/* Kanban Board with Drag & Drop */}
-            <DndContext
-              sensors={sensors}
-              onDragEnd={handleDragEnd}
-              collisionDetection={closestCorners}
-            >
-              <div className="overflow-x-auto pb-4">
-                <div className="flex gap-6 min-w-max">
-                  {columns
-                    .sort((a, b) => a.position - b.position)
-                    .map((column, index) => (
-                      <DroppableColumn
-                        key={column.id}
-                        column={column}
-                        tasks={tasks}
-                        checklistItems={checklistItems}
-                        index={index}
-                        totalColumns={columns.length}
-                        onMoveColumn={moveColumn}
-                        onDuplicateColumn={duplicateColumn}
-                        onDeleteColumn={deleteColumn}
-                        onDuplicateTask={duplicateTask}
-                        onDeleteTask={deleteTask}
-                        onUpdateTasks={fetchBoardData}
-                        getPriorityColor={getPriorityColor}
-                        newTaskTitle={newTaskTitle}
-                        setNewTaskTitle={setNewTaskTitle}
-                        newTaskDescription={newTaskDescription}
-                        setNewTaskDescription={setNewTaskDescription}
-                        newTaskPriority={newTaskPriority}
-                        setNewTaskPriority={setNewTaskPriority}
-                        onCreateTask={createTaskInColumn}
-                      />
-                    ))}
+        {/* Boards Sub-navigation */}
+        <div className="bg-[#15181e] border-b border-white/5">
+          <div className="max-w-[1800px] mx-auto px-6 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 py-4">
+              {boards.map((board) => (
+                <div key={board.id} className="flex items-center group/tab">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSelectedBoard(board)}
+                    className={`
+                      relative h-10 px-6 rounded-full font-bold transition-all duration-300
+                      ${selectedBoard?.id === board.id
+                        ? "bg-white/10 text-white shadow-lg ring-1 ring-white/20"
+                        : "text-muted-foreground hover:text-white hover:bg-white/5"}
+                    `}
+                  >
+                    {board.name}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover/tab:opacity-100 transition-opacity rounded-full hover:bg-white/10">
+                        <MoreVertical className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="glass-morphism border-white/20">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setRenamingBoardId(board.id);
+                          setRenamingBoardName(board.name);
+                          setIsRenamingBoard(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Renomear Board
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => duplicateBoard(board.id, board.name)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicar Board
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => deleteBoard(board.id, board.name)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir Board
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
-                  {/* Add Column Button */}
-                  <div className="w-80 flex-shrink-0">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <div className="bg-muted/50 border-2 border-dashed border-muted-foreground/25 rounded-lg h-[680px] flex flex-col items-center justify-center cursor-pointer hover:border-muted-foreground/50 transition-colors">
-                          <Plus className="h-8 w-8 text-muted-foreground mb-2" />
-                          <span className="text-muted-foreground font-medium">Nova Coluna</span>
+        {/* Rename Board Dialog */}
+        <Dialog open={isRenamingBoard} onOpenChange={setIsRenamingBoard}>
+          <DialogContent className="glass-morphism border-white/20">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight">Renomear Board</DialogTitle>
+              <DialogDescription className="text-foreground/60">
+                Digite o novo nome para o board
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="renameBoardName" className="font-bold text-sm tracking-wider uppercase ml-1">Novo Nome</Label>
+                <Input
+                  id="renameBoardName"
+                  value={renamingBoardName}
+                  onChange={(e) => setRenamingBoardName(e.target.value)}
+                  placeholder="Ex: Tarefas de Fevereiro"
+                  className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
+                />
+              </div>
+              <Button onClick={updateBoard} className="w-full h-12 bg-primary font-bold text-lg rounded-xl shadow-xl shadow-primary/10 transition-all active:scale-95">
+                Salvar Alterações
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Main Content Area */}
+        <main className="flex-grow overflow-hidden relative">
+          {selectedBoard ? (
+            <div className="h-full flex flex-col p-8">
+              <div className="flex justify-between items-center mb-10 px-2">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-4xl font-black tracking-tighter text-white">{selectedBoard.name}</h2>
+                  <Badge className="bg-primary/20 text-primary border-primary/30 uppercase font-black tracking-widest text-[10px] py-1 px-3">
+                    Live View
+                  </Badge>
+                </div>
+                <div className="flex gap-4">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="bg-white/5 border-white/10 text-white hover:bg-white/10 rounded-full px-6 font-bold transition-all active:scale-95">
+                        <Plus className="h-5 w-5 mr-2 text-primary" />
+                        Nova Coluna
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="glass-morphism border-white/20">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-black tracking-tight">Criar Nova Coluna</DialogTitle>
+                        <DialogDescription className="text-foreground/60 font-medium">
+                          Adicione uma nova coluna ao board
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-6 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="columnName" className="font-bold text-sm tracking-widest uppercase ml-1">Nome da Coluna</Label>
+                          <Input
+                            id="columnName"
+                            value={newColumnName}
+                            onChange={(e) => setNewColumnName(e.target.value)}
+                            placeholder="Ex: Tarefas Pendentes"
+                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
+                          />
                         </div>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Criar Nova Coluna</DialogTitle>
-                          <DialogDescription>
-                            Adicione uma nova coluna ao board
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="columnName">Nome da Coluna</Label>
-                            <Input
-                              id="columnName"
-                              value={newColumnName}
-                              onChange={(e) => setNewColumnName(e.target.value)}
-                              placeholder="Digite o nome da coluna"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="columnColor">Cor da Coluna</Label>
+                        <div className="space-y-2">
+                          <Label htmlFor="columnColor" className="font-bold text-sm tracking-widest uppercase ml-1">Cor de Destaque</Label>
+                          <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
                             <Input
                               id="columnColor"
                               type="color"
                               value={newColumnColor}
                               onChange={(e) => setNewColumnColor(e.target.value)}
+                              className="w-20 h-10 p-1 bg-transparent border-none"
+                            />
+                            <div className="flex-1 flex items-center bg-white/5 rounded-lg px-4 text-xs font-mono text-muted-foreground uppercase">
+                              {newColumnColor}
+                            </div>
+                          </div>
+                        </div>
+                        <Button onClick={createColumn} className="w-full h-12 bg-primary font-extrabold text-lg rounded-xl shadow-xl shadow-primary/20 transition-all active:scale-95">
+                          Criar Coluna
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              {/* Kanban Board with Drag & Drop */}
+              <DndContext
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                collisionDetection={closestCorners}
+              >
+                <div className="h-full overflow-x-auto pb-8 custom-scrollbar">
+                  <div className="flex gap-8 min-w-max h-full px-2 pt-2">
+                    {columns
+                      .sort((a, b) => a.position - b.position)
+                      .map((column, index) => (
+                        <DroppableColumn
+                          key={column.id}
+                          column={column}
+                          tasks={tasks}
+                          checklistItems={checklistItems}
+                          index={index}
+                          totalColumns={columns.length}
+                          onMoveColumn={moveColumn}
+                          onDuplicateColumn={duplicateColumn}
+                          onDeleteColumn={deleteColumn}
+                          onDuplicateTask={duplicateTask}
+                          onDeleteTask={deleteTask}
+                          onUpdateTasks={fetchBoardData}
+                          getPriorityColor={getPriorityColor}
+                          newTaskTitle={newTaskTitle}
+                          setNewTaskTitle={setNewTaskTitle}
+                          newTaskDescription={newTaskDescription}
+                          setNewTaskDescription={setNewTaskDescription}
+                          newTaskPriority={newTaskPriority}
+                          setNewTaskPriority={setNewTaskPriority}
+                          onCreateTask={createTaskInColumn}
+                        />
+                      ))}
+
+                    {/* Add Column Placeholder */}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button className="w-80 h-[120px] rounded-2xl bg-white/[0.03] border-2 border-dashed border-white/10 hover:border-primary/50 hover:bg-white/[0.05] transition-all duration-300 group/new">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover/new:bg-primary/20 group-hover/new:text-primary transition-colors">
+                              <Plus className="h-6 w-6" />
+                            </div>
+                            <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60 group-hover/new:text-primary transition-colors">Nova Coluna</span>
+                          </div>
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="glass-morphism border-white/20">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-black">Nova Coluna</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-6 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="columnName" className="font-bold text-xs uppercase tracking-widest ml-1">Nome</Label>
+                            <Input
+                              id="columnName"
+                              value={newColumnName}
+                              onChange={(e) => setNewColumnName(e.target.value)}
+                              placeholder="Ex: Em Revisão"
+                              className="bg-white/5 border-white/10"
                             />
                           </div>
-                          <Button onClick={createColumn} className="w-full">
-                            Criar Coluna
+                          <div className="space-y-2">
+                            <Label htmlFor="columnColor" className="font-bold text-xs uppercase tracking-widest ml-1">Cor</Label>
+                            <Input
+                              id="columnColor"
+                              type="color"
+                              value={newColumnColor}
+                              onChange={(e) => setNewColumnColor(e.target.value)}
+                              className="w-full h-12 bg-transparent border-white/10"
+                            />
+                          </div>
+                          <Button onClick={createColumn} className="w-full bg-primary font-bold shadow-xl shadow-primary/20">
+                            Confirmar
                           </Button>
                         </div>
                       </DialogContent>
                     </Dialog>
                   </div>
                 </div>
-              </div>
 
-              <DragOverlay dropAnimation={{
-                sideEffects: defaultDropAnimationSideEffects({
-                  styles: {
-                    active: {
-                      opacity: '0.5',
+                <DragOverlay dropAnimation={{
+                  sideEffects: defaultDropAnimationSideEffects({
+                    styles: {
+                      active: {
+                        opacity: '0.5',
+                      },
                     },
-                  },
-                }),
-              }}>
-                {activeTask ? (
-                  <div className="w-80 pointer-events-none rotate-2 scale-105 shadow-2xl">
-                    <TaskCard
-                      task={activeTask}
-                      checklistItems={checklistItems.filter(item => item.task_id === activeTask.id)}
-                      onDuplicate={() => { }}
-                      onDelete={() => { }}
-                      onUpdate={() => { }}
-                      getPriorityColor={getPriorityColor}
-                    />
-                  </div>
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-          </>
-        ) : (
-          <div className="text-center py-16">
-            <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Nenhum board criado</h3>
-            <p className="text-muted-foreground mb-6">
-              Crie seu primeiro board para começar a organizar suas tarefas
-            </p>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Primeiro Board
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Board</DialogTitle>
-                  <DialogDescription>
-                    Crie um novo board para organizar suas tarefas
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="boardName">Nome do Board</Label>
-                    <Input
-                      id="boardName"
-                      value={newBoardName}
-                      onChange={(e) => setNewBoardName(e.target.value)}
-                      placeholder="Digite o nome do board"
-                    />
-                  </div>
-                  <Button onClick={createBoard} className="w-full">
-                    Criar Board
+                  }),
+                }}>
+                  {activeTask ? (
+                    <div className="w-80 pointer-events-none rotate-2 scale-105 shadow-2xl">
+                      <TaskCard
+                        task={activeTask}
+                        checklistItems={checklistItems.filter(item => item.task_id === activeTask.id)}
+                        onDuplicate={() => { }}
+                        onDelete={() => { }}
+                        onUpdate={() => { }}
+                        getPriorityColor={getPriorityColor}
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
+              <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-4">
+                <Users className="h-10 w-10 text-muted-foreground/40" />
+              </div>
+              <div className="space-y-4 max-w-md">
+                <h3 className="text-3xl font-black tracking-tighter text-white">Nenhum board encontrado</h3>
+                <p className="text-muted-foreground font-medium">
+                  Este projeto ainda não possui boards. Crie um novo board para começar a organizar suas tarefas de forma profissional.
+                </p>
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="bg-primary hover:bg-primary/90 text-white font-bold h-12 px-8 rounded-full shadow-2xl shadow-primary/20 transition-all active:scale-95">
+                    <Plus className="h-5 w-5 mr-2" />
+                    Criar Primeiro Board
                   </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        )}
-      </main>
+                </DialogTrigger>
+                <DialogContent className="glass-morphism border-white/20">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-black">Novo Board</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="boardName" className="font-bold text-xs uppercase tracking-widest ml-1">Nome do Board</Label>
+                      <Input
+                        id="boardName"
+                        value={newBoardName}
+                        onChange={(e) => setNewBoardName(e.target.value)}
+                        placeholder="Ex: Roadmap 2024"
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
+                    <Button onClick={createBoard} className="w-full bg-primary font-bold shadow-xl shadow-primary/20">
+                      Criar Board
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 };

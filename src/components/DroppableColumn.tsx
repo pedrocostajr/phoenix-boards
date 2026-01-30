@@ -94,43 +94,45 @@ export const DroppableColumn = ({
     .sort((a, b) => a.position - b.position);
 
   return (
-    <div className="bg-card rounded-lg border w-80 flex-shrink-0">
-      <div className="p-4 border-b">
-        <div className="flex items-center gap-2">
-          <div 
-            className="w-3 h-3 rounded-full" 
-            style={{ backgroundColor: column.color }}
-          />
-          <h3 className="font-semibold">{column.name}</h3>
-          <Badge variant="secondary" className="ml-auto">
-            {columnTasks.length}
-          </Badge>
-          <div className="flex items-center gap-1">
+    <div className="bg-white/40 backdrop-blur-md rounded-xl border border-white/20 shadow-xl w-80 flex-shrink-0 flex flex-col h-[750px] transition-all hover:bg-white/50 group/column">
+      <div className="p-5 border-b border-white/10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-4 h-4 rounded-full shadow-lg ring-2 ring-white/50"
+              style={{ backgroundColor: column.color }}
+            />
+            <h3 className="font-bold text-lg tracking-tight text-foreground/90">{column.name}</h3>
+            <Badge variant="secondary" className="bg-white/20 text-foreground/70 border-none px-2.5 py-0.5 rounded-full font-medium">
+              {columnTasks.length}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1 opacity-0 group-hover/column:opacity-100 transition-opacity">
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="h-7 w-7 p-0 hover:bg-white/20 rounded-full"
               onClick={() => onMoveColumn(column.id, 'left')}
               disabled={index === 0}
             >
-              <ChevronLeft className="h-3 w-3" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0"
+              className="h-7 w-7 p-0 hover:bg-white/20 rounded-full"
               onClick={() => onMoveColumn(column.id, 'right')}
               disabled={index === totalColumns - 1}
             >
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreVertical className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-white/20 rounded-full">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="glass-morphism">
                 <DropdownMenuItem
                   onClick={() => onDuplicateColumn(column.id, column.name)}
                 >
@@ -149,8 +151,8 @@ export const DroppableColumn = ({
           </div>
         </div>
       </div>
-      
-      <div ref={setNodeRef} className="p-4 space-y-3 h-[600px] overflow-y-auto">
+
+      <div ref={setNodeRef} className="p-4 space-y-4 flex-grow overflow-y-auto scrollbar-hide">
         <SortableContext items={columnTasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
           {columnTasks.map((task) => (
             <TaskCard
@@ -164,57 +166,63 @@ export const DroppableColumn = ({
             />
           ))}
         </SortableContext>
-        
+
         {/* Add Task Button */}
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" className="w-full border-dashed" size="sm">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button
+              variant="outline"
+              className="w-full border-dashed border-white/30 bg-white/10 hover:bg-white/20 hover:border-white/50 text-foreground/60 transition-all duration-300 rounded-lg group/add"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2 group-hover/add:scale-125 transition-transform" />
               Adicionar tarefa
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="glass-morphism border-white/20">
             <DialogHeader>
-              <DialogTitle>Criar Nova Tarefa</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl font-bold">Criar Nova Tarefa</DialogTitle>
+              <DialogDescription className="text-foreground/60">
                 Adicione uma nova tarefa à coluna "{column.name}"
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="quickTaskTitle">Título da Tarefa</Label>
+            <div className="space-y-5 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="quickTaskTitle" className="text-sm font-semibold ml-1">Título da Tarefa</Label>
                 <Input
                   id="quickTaskTitle"
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="Digite o título da tarefa"
+                  placeholder="Ex: Finalizar interface premium"
+                  className="bg-white/5 border-white/10 focus:border-primary/50"
                 />
               </div>
-              <div>
-                <Label htmlFor="quickTaskDescription">Descrição</Label>
+              <div className="space-y-2">
+                <Label htmlFor="quickTaskDescription" className="text-sm font-semibold ml-1">Descrição</Label>
                 <Textarea
                   id="quickTaskDescription"
                   value={newTaskDescription}
                   onChange={(e) => setNewTaskDescription(e.target.value)}
-                  placeholder="Digite a descrição da tarefa"
+                  placeholder="Descreva brevemente o que precisa ser feito..."
+                  className="bg-white/5 border-white/10 focus:border-primary/50 min-h-[100px]"
                 />
               </div>
-              <div>
-                <Label htmlFor="quickTaskPriority">Prioridade</Label>
+              <div className="space-y-2">
+                <Label htmlFor="quickTaskPriority" className="text-sm font-semibold ml-1">Prioridade</Label>
                 <Select value={newTaskPriority} onValueChange={setNewTaskPriority}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white/5 border-white/10">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
+                  <SelectContent className="glass-morphism border-white/10">
+                    <SelectItem value="low" className="focus:bg-green-500/20">Baixa</SelectItem>
+                    <SelectItem value="medium" className="focus:bg-yellow-500/20">Média</SelectItem>
+                    <SelectItem value="high" className="focus:bg-red-500/20">Alta</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button 
-                onClick={() => onCreateTask(column.id)} 
-                className="w-full"
+              <Button
+                onClick={() => onCreateTask(column.id)}
+                className="w-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 h-10 font-bold"
               >
                 Criar Tarefa
               </Button>
