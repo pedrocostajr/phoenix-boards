@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TrialBanner } from '@/components/TrialBanner';
-import { ExperimentalSection } from '@/components/ExperimentalSection';
 
 interface Project {
   id: string;
@@ -44,7 +43,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     console.log('🔍 Dashboard useEffect:', { authLoading, user: user?.email, approved });
-    
+
+    if (!authLoading && !user) {
+      console.log('🚪 Usuário não autenticado, redirecionando para /auth');
+      navigate('/auth');
+      return;
+    }
+
     if (!authLoading && user && !approved && user.email !== 'contato@leadsign.com.br') {
       console.log('❌ Redirecionando para pending-approval:', { approved, email: user.email });
       navigate('/pending-approval');
@@ -79,7 +84,7 @@ const Dashboard = () => {
 
   const fetchUserProfile = async () => {
     if (!user?.id) return;
-    
+
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -340,7 +345,7 @@ const Dashboard = () => {
 
       // Se não encontrou por nome, buscar por uma query que simule busca por email
       let userId = profile?.user_id;
-      
+
       if (!userId) {
         toast({
           title: "Usuário não encontrado",
@@ -474,7 +479,7 @@ const Dashboard = () => {
         {userProfile?.created_at && (
           <TrialBanner userCreatedAt={userProfile.created_at} />
         )}
-        
+
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Meus Projetos</h2>
@@ -517,7 +522,7 @@ const Dashboard = () => {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                       <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end">
                         <Dialog>
                           <DialogTrigger asChild>
                             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -550,7 +555,7 @@ const Dashboard = () => {
                                   </Button>
                                 </div>
                               </div>
-                              
+
                               {/* Lista de membros */}
                               <div className="space-y-2">
                                 <Label>Membros do projeto</Label>
@@ -610,8 +615,8 @@ const Dashboard = () => {
                   <p className="text-sm text-muted-foreground">
                     Criado em {new Date(project.created_at).toLocaleDateString('pt-BR')}
                   </p>
-                  <Button 
-                    className="w-full mt-4" 
+                  <Button
+                    className="w-full mt-4"
                     variant="outline"
                     onClick={() => navigate(`/project/${project.id}`)}
                   >
@@ -622,11 +627,7 @@ const Dashboard = () => {
             ))}
           </div>
         )}
-        
-        {/* Experimental Section */}
-        <div className="mt-12">
-          <ExperimentalSection />
-        </div>
+
       </main>
     </div>
   );

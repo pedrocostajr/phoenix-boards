@@ -13,9 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DndContext, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCorners } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, MouseSensor, TouchSensor, useSensor, useSensors, closestCorners, DragOverlay, defaultDropAnimationSideEffects, DropAnimation } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { DroppableColumn } from '@/components/DroppableColumn';
+import { TaskCard } from '@/components/TaskCard';
 
 interface Project {
   id: string;
@@ -81,9 +82,24 @@ const Project = () => {
   const [selectedColumnId, setSelectedColumnId] = useState('');
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnColor, setNewColumnColor] = useState('#6366f1');
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isRenamingBoard, setIsRenamingBoard] = useState(false);
+  const [renamingBoardId, setRenamingBoardId] = useState('');
+  const [renamingBoardName, setRenamingBoardName] = useState('');
   const { toast } = useToast();
 
   const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    }),
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
@@ -92,10 +108,16 @@ const Project = () => {
   );
 
   useEffect(() => {
-    if (projectId) {
+    if (!loading && !user) {
+      console.log('🚪 Usuário não autenticado, redirecionando para /auth');
+      navigate('/auth');
+      return;
+    }
+
+    if (projectId && user) {
       fetchProjectData();
     }
-  }, [projectId]);
+  }, [projectId, user, loading, navigate]);
 
   useEffect(() => {
     if (selectedBoard) {
@@ -122,7 +144,7 @@ const Project = () => {
 
       if (boardsError) throw boardsError;
       setBoards(boardsData || []);
-      
+
       if (boardsData && boardsData.length > 0) {
         setSelectedBoard(boardsData[0]);
       }
@@ -246,7 +268,10 @@ const Project = () => {
           created_by: user.id
         }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro Supabase ao criar tarefa:', error);
+        throw error;
+      }
 
       toast({
         title: "Tarefa criada!",
@@ -256,7 +281,11 @@ const Project = () => {
       setNewTaskTitle('');
       setNewTaskDescription('');
       setSelectedColumnId('');
-      fetchBoardData();
+
+      // Delay pequeno para garantir que o banco processou antes do refresh
+      setTimeout(() => {
+        fetchBoardData();
+      }, 500);
     } catch (error: any) {
       toast({
         title: "Erro ao criar tarefa",
@@ -361,6 +390,35 @@ const Project = () => {
     } catch (error: any) {
       toast({
         title: "Erro ao duplicar board",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateBoard = async () => {
+    if (!renamingBoardId || !renamingBoardName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('boards')
+        .update({ name: renamingBoardName })
+        .eq('id', renamingBoardId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Board renomeado!",
+        description: "O nome do board foi atualizado com sucesso.",
+      });
+
+      setIsRenamingBoard(false);
+      setRenamingBoardId('');
+      setRenamingBoardName('');
+      fetchProjectData();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao renomear board",
         description: error.message,
         variant: "destructive",
       });
@@ -623,7 +681,7 @@ const Project = () => {
 
     const sortedColumns = [...columns].sort((a, b) => a.position - b.position);
     const currentIndex = sortedColumns.findIndex(col => col.id === columnId);
-    
+
     if (direction === 'left' && currentIndex === 0) return;
     if (direction === 'right' && currentIndex === sortedColumns.length - 1) return;
 
@@ -680,10 +738,10 @@ const Project = () => {
 
       if (oldIndex !== newIndex) {
         const newOrderedTasks = arrayMove(columnTasks, oldIndex, newIndex);
-        
+
         // Update positions in database
         try {
-          const updates = newOrderedTasks.map((task, index) => 
+          const updates = newOrderedTasks.map((task, index) =>
             supabase
               .from('tasks')
               .update({ position: index })
@@ -708,14 +766,14 @@ const Project = () => {
 
         await supabase
           .from('tasks')
-          .update({ 
+          .update({
             column_id: overColumnId,
             position: newPosition
           })
           .eq('id', activeTaskId);
 
         fetchBoardData();
-        
+
         toast({
           title: "Tarefa movida!",
           description: "A tarefa foi movida para a nova coluna.",
@@ -839,6 +897,16 @@ const Project = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      onClick={() => {
+                        setRenamingBoardId(board.id);
+                        setRenamingBoardName(board.name);
+                        setIsRenamingBoard(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Renomear Board
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                       onClick={() => duplicateBoard(board.id, board.name)}
                     >
                       <Copy className="h-4 w-4 mr-2" />
@@ -858,6 +926,32 @@ const Project = () => {
           </div>
         </div>
       </div>
+
+      {/* Rename Board Dialog */}
+      <Dialog open={isRenamingBoard} onOpenChange={setIsRenamingBoard}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear Board</DialogTitle>
+            <DialogDescription>
+              Digite o novo nome para o board
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="renameBoardName">Novo Nome</Label>
+              <Input
+                id="renameBoardName"
+                value={renamingBoardName}
+                onChange={(e) => setRenamingBoardName(e.target.value)}
+                placeholder="Ex: Tarefas de Fevereiro"
+              />
+            </div>
+            <Button onClick={updateBoard} className="w-full">
+              Salvar Alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -912,66 +1006,66 @@ const Project = () => {
                       Nova Tarefa
                     </Button>
                   </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Criar Nova Tarefa</DialogTitle>
-                    <DialogDescription>
-                      Adicione uma nova tarefa ao board
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="taskTitle">Título da Tarefa</Label>
-                      <Input
-                        id="taskTitle"
-                        value={newTaskTitle}
-                        onChange={(e) => setNewTaskTitle(e.target.value)}
-                        placeholder="Digite o título da tarefa"
-                      />
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Criar Nova Tarefa</DialogTitle>
+                      <DialogDescription>
+                        Adicione uma nova tarefa ao board
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="taskTitle">Título da Tarefa</Label>
+                        <Input
+                          id="taskTitle"
+                          value={newTaskTitle}
+                          onChange={(e) => setNewTaskTitle(e.target.value)}
+                          placeholder="Digite o título da tarefa"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="taskDescription">Descrição</Label>
+                        <Textarea
+                          id="taskDescription"
+                          value={newTaskDescription}
+                          onChange={(e) => setNewTaskDescription(e.target.value)}
+                          placeholder="Digite a descrição da tarefa"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="taskColumn">Coluna</Label>
+                        <Select value={selectedColumnId} onValueChange={setSelectedColumnId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione uma coluna" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {columns.map((column) => (
+                              <SelectItem key={column.id} value={column.id}>
+                                {column.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="taskPriority">Prioridade</Label>
+                        <Select value={newTaskPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewTaskPriority(value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Baixa</SelectItem>
+                            <SelectItem value="medium">Média</SelectItem>
+                            <SelectItem value="high">Alta</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button onClick={createTask} className="w-full">
+                        Criar Tarefa
+                      </Button>
                     </div>
-                    <div>
-                      <Label htmlFor="taskDescription">Descrição</Label>
-                      <Textarea
-                        id="taskDescription"
-                        value={newTaskDescription}
-                        onChange={(e) => setNewTaskDescription(e.target.value)}
-                        placeholder="Digite a descrição da tarefa"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="taskColumn">Coluna</Label>
-                      <Select value={selectedColumnId} onValueChange={setSelectedColumnId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione uma coluna" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {columns.map((column) => (
-                            <SelectItem key={column.id} value={column.id}>
-                              {column.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="taskPriority">Prioridade</Label>
-                      <Select value={newTaskPriority} onValueChange={(value: 'low' | 'medium' | 'high') => setNewTaskPriority(value)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="low">Baixa</SelectItem>
-                          <SelectItem value="medium">Média</SelectItem>
-                          <SelectItem value="high">Alta</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={createTask} className="w-full">
-                      Criar Tarefa
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
 
@@ -986,30 +1080,30 @@ const Project = () => {
                   {columns
                     .sort((a, b) => a.position - b.position)
                     .map((column, index) => (
-                    <DroppableColumn
-                      key={column.id}
-                      column={column}
-                      tasks={tasks}
-                      checklistItems={checklistItems}
-                      index={index}
-                      totalColumns={columns.length}
-                      onMoveColumn={moveColumn}
-                      onDuplicateColumn={duplicateColumn}
-                      onDeleteColumn={deleteColumn}
-                      onDuplicateTask={duplicateTask}
-                      onDeleteTask={deleteTask}
-                      onUpdateTasks={fetchBoardData}
-                      getPriorityColor={getPriorityColor}
-                      newTaskTitle={newTaskTitle}
-                      setNewTaskTitle={setNewTaskTitle}
-                      newTaskDescription={newTaskDescription}
-                      setNewTaskDescription={setNewTaskDescription}
-                      newTaskPriority={newTaskPriority}
-                      setNewTaskPriority={setNewTaskPriority}
-                      onCreateTask={createTaskInColumn}
-                    />
-                  ))}
-                  
+                      <DroppableColumn
+                        key={column.id}
+                        column={column}
+                        tasks={tasks}
+                        checklistItems={checklistItems}
+                        index={index}
+                        totalColumns={columns.length}
+                        onMoveColumn={moveColumn}
+                        onDuplicateColumn={duplicateColumn}
+                        onDeleteColumn={deleteColumn}
+                        onDuplicateTask={duplicateTask}
+                        onDeleteTask={deleteTask}
+                        onUpdateTasks={fetchBoardData}
+                        getPriorityColor={getPriorityColor}
+                        newTaskTitle={newTaskTitle}
+                        setNewTaskTitle={setNewTaskTitle}
+                        newTaskDescription={newTaskDescription}
+                        setNewTaskDescription={setNewTaskDescription}
+                        newTaskPriority={newTaskPriority}
+                        setNewTaskPriority={setNewTaskPriority}
+                        onCreateTask={createTaskInColumn}
+                      />
+                    ))}
+
                   {/* Add Column Button */}
                   <div className="w-80 flex-shrink-0">
                     <Dialog>
@@ -1054,6 +1148,29 @@ const Project = () => {
                   </div>
                 </div>
               </div>
+
+              <DragOverlay dropAnimation={{
+                sideEffects: defaultDropAnimationSideEffects({
+                  styles: {
+                    active: {
+                      opacity: '0.5',
+                    },
+                  },
+                }),
+              }}>
+                {activeTask ? (
+                  <div className="w-80 pointer-events-none rotate-2 scale-105 shadow-2xl">
+                    <TaskCard
+                      task={activeTask}
+                      checklistItems={checklistItems.filter(item => item.task_id === activeTask.id)}
+                      onDuplicate={() => { }}
+                      onDelete={() => { }}
+                      onUpdate={() => { }}
+                      getPriorityColor={getPriorityColor}
+                    />
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
           </>
         ) : (
