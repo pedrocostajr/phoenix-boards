@@ -717,10 +717,22 @@ const Project = () => {
     if (!over) return;
 
     const activeTaskId = active.id as string;
-    const overColumnId = over.id as string;
-
     const activeTask = tasks.find(task => task.id === activeTaskId);
+
     if (!activeTask) return;
+
+    // Determine the over column ID
+    let overColumnId: string;
+    const overTask = tasks.find(t => t.id === over.id);
+    if (overTask) {
+      overColumnId = overTask.column_id;
+    } else {
+      // Check if it matches a column ID potentially
+      const overColumn = boards.find(b => b.id === over.id) ? over.id : columns.find(c => c.id === over.id)?.id;
+      overColumnId = overColumn as string;
+    }
+
+    if (!overColumnId) return;
 
     // If moving to the same column
     if (activeTask.column_id === overColumnId) {
@@ -732,12 +744,22 @@ const Project = () => {
       let newIndex = columnTasks.length - 1;
 
       // If we're dropping on another task, find the new position
-      if (over.data?.current?.type === 'task') {
+      if (over.data?.current?.type === 'task' || overTask) {
         newIndex = columnTasks.findIndex(task => task.id === over.id);
       }
 
       if (oldIndex !== newIndex) {
         const newOrderedTasks = arrayMove(columnTasks, oldIndex, newIndex);
+
+        // Optimistic UI update
+        const newTasks = [...tasks];
+        const taskIndex = newTasks.findIndex(t => t.id === activeTaskId);
+        // We actually need to reorder the entire list for this column locally to look right immediately
+        // But for simplicity, we trigger fetchBoardData usually. Let's try to update locally first.
+        setTasks(prevTasks => {
+          const otherTasks = prevTasks.filter(t => t.column_id !== overColumnId);
+          return [...otherTasks, ...newOrderedTasks];
+        });
 
         // Update positions in database
         try {
@@ -756,13 +778,27 @@ const Project = () => {
             description: error.message,
             variant: "destructive",
           });
+          fetchBoardData(); // Revert on error
         }
       }
     } else {
       // Moving to different column
       try {
         const targetColumnTasks = tasks.filter(task => task.column_id === overColumnId);
-        const newPosition = targetColumnTasks.length;
+        // Calculate new position
+        let newPosition = targetColumnTasks.length;
+        if (overTask) {
+          const overTaskIndex = targetColumnTasks.findIndex(t => t.id === over.id);
+          if (overTaskIndex !== -1) newPosition = overTaskIndex;
+        }
+
+        // Optimistic Update
+        setTasks(prev => prev.map(t => {
+          if (t.id === activeTaskId) {
+            return { ...t, column_id: overColumnId, position: newPosition };
+          }
+          return t;
+        }));
 
         await supabase
           .from('tasks')
@@ -771,6 +807,10 @@ const Project = () => {
             position: newPosition
           })
           .eq('id', activeTaskId);
+
+        // We also need to update positions of other tasks in the new column if inserted in middle
+        // But for MVP just appending or placing, sorting handles it. 
+        // Ideally we should re-index the target column but let's stick to simple move first.
 
         fetchBoardData();
 
@@ -784,6 +824,7 @@ const Project = () => {
           description: error.message,
           variant: "destructive",
         });
+        fetchBoardData(); // Revert
       }
     }
   };
