@@ -79,6 +79,7 @@ interface DroppableColumnProps {
   projectTags: Tag[];
   projectMembers: Profile[];
   projectId?: string;
+  onTagsUpdate: () => void;
 }
 
 export const DroppableColumn = ({
@@ -104,6 +105,7 @@ export const DroppableColumn = ({
   projectTags = [],
   projectMembers = [],
   projectId,
+  onTagsUpdate,
 }: DroppableColumnProps) => {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -183,6 +185,7 @@ export const DroppableColumn = ({
               onUpdate={onUpdateTasks}
               getPriorityColor={getPriorityColor}
               projectTags={projectTags}
+              onTagsUpdate={onTagsUpdate}
               projectMembers={projectMembers}
               projectId={projectId}
             />

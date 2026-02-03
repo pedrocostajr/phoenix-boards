@@ -1313,6 +1313,7 @@ const Project = () => {
                           setNewTaskPriority={setNewTaskPriority}
                           onCreateTask={createTaskInColumn}
                           projectTags={projectTags}
+                          onTagsUpdate={fetchProjectData}
                           projectMembers={projectMembers}
                           projectId={projectId}
                         />
@@ -1433,13 +1434,7 @@ const Project = () => {
             </div>
           )}
         </main>
-        {/* Version Marker */}
-        <div className="fixed bottom-2 right-2 bg-yellow-400 text-black text-[10px] px-2 py-1 z-50 font-mono opacity-50 hover:opacity-100 pointer-events-none">
-          v3.0 FIX ATIVO
-        </div>
       </div>
     </div>
   );
 };
-
-export default Project;

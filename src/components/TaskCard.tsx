@@ -62,6 +62,7 @@ interface TaskCardProps {
   onUpdate: () => void;
   getPriorityColor: (priority: string) => string;
   projectTags?: Tag[];
+  onTagsUpdate?: () => void;
   projectMembers?: Profile[];
   projectId?: string;
 }
@@ -511,7 +512,7 @@ export const TaskCard = ({
                           <SelectItem key={member.user_id} value={member.user_id}>
                             <div className="flex items-center gap-2">
                               <Avatar className="h-5 w-5">
-                                <AvatarFallback className="text-[8px]">{member.full_name?.substring(0, 2)}</AvatarFallback>
+                                <AvatarFallback className="text-[8px]">{member.full_name?.substring(0, 2) || member.email?.substring(0, 2)}</AvatarFallback>
                               </Avatar>
                               {member.full_name || member.email}
                             </div>
@@ -529,15 +530,22 @@ export const TaskCard = ({
                     {projectTags.map(tag => {
                       const isSelected = task.tags?.some(t => t.id === tag.id);
                       return (
-                        <Badge
-                          key={tag.id}
-                          variant={isSelected ? "default" : "outline"}
-                          className="cursor-pointer hover:opacity-80 transition-opacity"
-                          style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : { borderColor: tag.color, color: tag.color }}
-                          onClick={() => toggleTag(tag.id)}
-                        >
-                          {tag.name}
-                        </Badge>
+                        <div key={tag.id} className="group/tag relative inline-flex">
+                          <Badge
+                            variant={isSelected ? "default" : "outline"}
+                            className="cursor-pointer hover:opacity-80 transition-opacity pr-6"
+                            style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : { borderColor: tag.color, color: tag.color }}
+                            onClick={() => toggleTag(tag.id)}
+                          >
+                            {tag.name}
+                          </Badge>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteTag(tag.id); }}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/tag:opacity-100 hover:text-destructive transition-all"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
                       );
                     })}
 
