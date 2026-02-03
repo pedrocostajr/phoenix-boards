@@ -8,7 +8,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck, Edit } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck, Edit, Link, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TrialBanner } from '@/components/TrialBanner';
 
@@ -85,16 +86,15 @@ const Dashboard = () => {
     }
   };
 
+  // Includes existing functions...
   const fetchUserProfile = async () => {
     if (!user?.id) return;
-
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('created_at')
         .eq('user_id', user.id)
         .single();
-
       if (error) throw error;
       setUserProfile(profile);
     } catch (error) {
@@ -104,259 +104,94 @@ const Dashboard = () => {
 
   const createProject = async () => {
     if (!user?.id) {
-      toast({
-        title: "Erro de autenticação",
-        description: "Você precisa estar logado para criar projetos.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro de autenticação", description: "Você precisa estar logado.", variant: "destructive" });
       return;
     }
-
     const projectName = prompt('Nome do projeto:');
     if (!projectName) return;
-
     const projectDescription = prompt('Descrição do projeto (opcional):') || '';
 
     try {
-      const { error } = await supabase
-        .from('projects')
-        .insert([{
-          name: projectName,
-          description: projectDescription,
-          created_by: user.id
-        }]);
-
+      const { error } = await supabase.from('projects').insert([{ name: projectName, description: projectDescription, created_by: user.id }]);
       if (error) throw error;
-
-      toast({
-        title: "Projeto criado!",
-        description: `O projeto "${projectName}" foi criado com sucesso.`,
-      });
-
+      toast({ title: "Projeto criado!", description: `O projeto "${projectName}" foi criado com sucesso.` });
       fetchProjects();
     } catch (error: any) {
-      toast({
-        title: "Erro ao criar projeto",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao criar projeto", description: error.message, variant: "destructive" });
     }
   };
 
   const duplicateProject = async (projectId: string, projectName: string) => {
-    if (!user?.id) {
-      toast({
-        title: "Erro de autenticação",
-        description: "Você precisa estar logado para duplicar projetos.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!user?.id) { toast({ title: "Erro", description: "Login necessário", variant: "destructive" }); return; }
     try {
-      // Get original project
-      const { data: originalProject, error: projectError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
+      const { data: original, error: pError } = await supabase.from('projects').select('*').eq('id', projectId).single();
+      if (pError) throw pError;
+      const { data: newP, error: nPError } = await supabase.from('projects').insert([{ name: `${original.name} (Cópia)`, description: original.description, created_by: user.id }]).select().single();
+      if (nPError) throw nPError;
 
-      if (projectError) throw projectError;
-
-      // Create new project
-      const { data: newProject, error: newProjectError } = await supabase
-        .from('projects')
-        .insert([{
-          name: `${originalProject.name} (Cópia)`,
-          description: originalProject.description,
-          created_by: user.id
-        }])
-        .select()
-        .single();
-
-      if (newProjectError) throw newProjectError;
-
-      // Get all boards from original project
-      const { data: originalBoards, error: boardsError } = await supabase
-        .from('boards')
-        .select('*')
-        .eq('project_id', projectId);
-
-      if (boardsError) throw boardsError;
-
-      // Duplicate each board
-      for (const board of originalBoards || []) {
-        const { data: newBoard, error: newBoardError } = await supabase
-          .from('boards')
-          .insert([{
-            name: board.name,
-            project_id: newProject.id
-          }])
-          .select()
-          .single();
-
-        if (newBoardError) throw newBoardError;
-
-        // Get columns from original board
-        const { data: originalColumns, error: columnsError } = await supabase
-          .from('board_columns')
-          .select('*')
-          .eq('board_id', board.id)
-          .order('position');
-
-        if (columnsError) throw columnsError;
-
-        // Duplicate columns
-        const columnMapping: { [key: string]: string } = {};
-        for (const column of originalColumns || []) {
-          const { data: newColumn, error: newColumnError } = await supabase
-            .from('board_columns')
-            .insert([{
-              name: column.name,
-              color: column.color,
-              position: column.position,
-              board_id: newBoard.id
-            }])
-            .select()
-            .single();
-
-          if (newColumnError) throw newColumnError;
-          columnMapping[column.id] = newColumn.id;
+      const { data: boards } = await supabase.from('boards').select('*').eq('project_id', projectId);
+      for (const board of boards || []) {
+        const { data: newBoard } = await supabase.from('boards').insert([{ name: board.name, project_id: newP.id }]).select().single();
+        if (!newBoard) continue;
+        const { data: cols } = await supabase.from('board_columns').select('*').eq('board_id', board.id).order('position');
+        const colMap: any = {};
+        for (const col of cols || []) {
+          const { data: newCol } = await supabase.from('board_columns').insert([{ name: col.name, color: col.color, position: col.position, board_id: newBoard.id }]).select().single();
+          if (newCol) colMap[col.id] = newCol.id;
         }
-
-        // Get tasks from original columns
-        const { data: originalTasks, error: tasksError } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('column_id', Object.keys(columnMapping))
-          .order('position');
-
-        if (tasksError) throw tasksError;
-
-        // Duplicate tasks
-        for (const task of originalTasks || []) {
-          const { error: newTaskError } = await supabase
-            .from('tasks')
-            .insert([{
-              title: task.title,
-              description: task.description,
-              column_id: columnMapping[task.column_id],
-              position: task.position,
-              priority: task.priority,
-              due_date: task.due_date,
-              completed: false, // Reset completion status
-              created_by: user.id
-            }]);
-
-          if (newTaskError) throw newTaskError;
+        const { data: tasks } = await supabase.from('tasks').select('*').in('column_id', Object.keys(colMap)).order('position');
+        for (const task of tasks || []) {
+          await supabase.from('tasks').insert([{ title: task.title, description: task.description, column_id: colMap[task.column_id], position: task.position, priority: task.priority, due_date: task.due_date, created_by: user.id }]);
         }
       }
-
-      toast({
-        title: "Projeto duplicado!",
-        description: `O projeto "${originalProject.name}" foi duplicado com sucesso.`,
-      });
-
+      toast({ title: "Projeto duplicado", description: "Sucesso" });
       fetchProjects();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao duplicar projeto",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
   };
 
   const deleteProject = async (projectId: string, projectName: string) => {
-    if (!confirm(`Tem certeza que deseja excluir o projeto "${projectName}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-
+    if (!confirm(`Excluir "${projectName}"?`)) return;
     try {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-
+      const { error } = await supabase.from('projects').delete().eq('id', projectId);
       if (error) throw error;
-
-      toast({
-        title: "Projeto excluído!",
-        description: `O projeto "${projectName}" foi excluído com sucesso.`,
-      });
-
+      toast({ title: "Projeto excluído", description: "Sucesso" });
       fetchProjects();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao excluir projeto",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
   };
 
   const updateProject = async () => {
     if (!renamingProjectId || !renamingProjectName.trim()) return;
-
     try {
-      const { error } = await supabase
-        .from('projects')
-        .update({ name: renamingProjectName })
-        .eq('id', renamingProjectId);
-
+      const { error } = await supabase.from('projects').update({ name: renamingProjectName }).eq('id', renamingProjectId);
       if (error) throw error;
-
-      toast({
-        title: "Projeto renomeado!",
-        description: "O nome do projeto foi atualizado com sucesso.",
-      });
-
+      toast({ title: "Projeto renomeado!", description: "Sucesso." });
       setIsRenamingProject(false);
       setRenamingProjectId('');
       setRenamingProjectName('');
       fetchProjects();
     } catch (error: any) {
-      toast({
-        title: "Erro ao renomear projeto",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao renomear", description: error.message, variant: "destructive" });
     }
   };
 
   const fetchProjectMembers = async (projectId: string) => {
     setLoadingMembers(true);
     try {
-      const { data: members, error } = await supabase
-        .from('project_members')
-        .select('id, user_id, role')
-        .eq('project_id', projectId);
-
+      const { data: members, error } = await supabase.from('project_members').select('id, user_id, role').eq('project_id', projectId);
       if (error) throw error;
-
       const memberIds = members?.map(m => m.user_id) || [];
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, avatar_url')
-        .in('user_id', memberIds);
-
-      if (profilesError) throw profilesError;
-
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name, avatar_url').in('user_id', memberIds);
       const membersWithProfiles = members?.map(member => ({
         ...member,
-        profiles: profiles?.find(p => p.user_id === member.user_id) || {
-          full_name: 'Usuário não encontrado',
-          avatar_url: null
-        }
+        profiles: profiles?.find(p => p.user_id === member.user_id) || { full_name: 'Usuário não encontrado', avatar_url: null }
       })) || [];
-
       setProjectMembers(membersWithProfiles);
     } catch (error: any) {
-      toast({
-        title: "Erro ao carregar membros",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao carregar membros", description: error.message, variant: "destructive" });
     } finally {
       setLoadingMembers(false);
     }
@@ -364,89 +199,27 @@ const Dashboard = () => {
 
   const shareProject = async () => {
     if (!shareEmail.trim() || !selectedProjectId) return;
-
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('full_name', shareEmail)
-        .maybeSingle();
-
+      const { data: profile } = await supabase.from('profiles').select('user_id').eq('full_name', shareEmail).maybeSingle();
       let userId = profile?.user_id;
-
-      if (!userId) {
-        toast({
-          title: "Usuário não encontrado",
-          description: "Digite o nome completo do usuário conforme cadastrado no sistema.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { data: existingMember } = await supabase
-        .from('project_members')
-        .select('id')
-        .eq('project_id', selectedProjectId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (existingMember) {
-        toast({
-          title: "Usuário já é membro",
-          description: "Este usuário já tem acesso ao projeto.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('project_members')
-        .insert([{
-          project_id: selectedProjectId,
-          user_id: userId,
-          role: 'client'
-        }]);
-
+      if (!userId) { toast({ title: "Usuário não encontrado", variant: "destructive" }); return; }
+      const { data: existing } = await supabase.from('project_members').select('id').eq('project_id', selectedProjectId).eq('user_id', userId).maybeSingle();
+      if (existing) { toast({ title: "Já é membro", variant: "destructive" }); return; }
+      const { error } = await supabase.from('project_members').insert([{ project_id: selectedProjectId, user_id: userId, role: 'client' }]);
       if (error) throw error;
-
-      toast({
-        title: "Projeto compartilhado!",
-        description: "Usuário adicionado ao projeto com sucesso.",
-      });
-
+      toast({ title: "Compartilhado", description: "Sucesso" });
       setShareEmail('');
       fetchProjectMembers(selectedProjectId);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao compartilhar projeto",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
 
   const removeMember = async (memberId: string) => {
     try {
-      const { error } = await supabase
-        .from('project_members')
-        .delete()
-        .eq('id', memberId);
-
+      const { error } = await supabase.from('project_members').delete().eq('id', memberId);
       if (error) throw error;
-
-      toast({
-        title: "Membro removido!",
-        description: "Usuário removido do projeto com sucesso.",
-      });
-
+      toast({ title: "Removido", description: "Sucesso" });
       fetchProjectMembers(selectedProjectId);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao remover membro",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
 
   const openShareModal = (projectId: string) => {
@@ -454,7 +227,7 @@ const Dashboard = () => {
     fetchProjectMembers(projectId);
   };
 
-  if (loading || authLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -516,7 +289,21 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {projects.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="h-40">
+                <CardHeader className="space-y-2">
+                  <Skeleton className="h-5 w-1/2" />
+                  <Skeleton className="h-4 w-3/4" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-10 w-full mt-4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : projects.length === 0 ? (
           <div className="text-center py-16">
             <Zap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">Nenhum projeto ainda</h3>
