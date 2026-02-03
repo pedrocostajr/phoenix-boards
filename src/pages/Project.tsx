@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, MouseSensor, TouchSensor, useSensor, useSensors, closestCorners, DragOverlay, defaultDropAnimationSideEffects, DropAnimation } from '@dnd-kit/core';
 import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { DroppableColumn } from '@/components/DroppableColumn';
+import { Skeleton } from '@/components/ui/skeleton';
 import { TaskCard } from '@/components/TaskCard';
 
 interface Project {
@@ -50,10 +51,25 @@ interface Task {
   priority: string;
   due_date: string | null;
   completed: boolean;
-  assigned_to: string | null;
+  assigned_to: string | null; // User ID
   created_by: string;
   created_at: string;
   updated_at: string;
+  tags?: Tag[]; // Populated in frontend
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  project_id: string;
+}
+
+interface Profile {
+  user_id: string;
+  approved: boolean;
+  full_name?: string; // Optional if not always present
+  email?: string; // Optional
 }
 
 interface ChecklistItem {
@@ -67,13 +83,15 @@ interface ChecklistItem {
 const Project = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+  const [projectTags, setProjectTags] = useState<Tag[]>([]);
+  const [projectMembers, setProjectMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [newBoardName, setNewBoardName] = useState('');
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -108,7 +126,7 @@ const Project = () => {
   );
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       console.log('🚪 Usuário não autenticado, redirecionando para /auth');
       navigate('/auth');
       return;
@@ -117,36 +135,71 @@ const Project = () => {
     if (projectId && user) {
       fetchProjectData();
     }
-  }, [projectId, user, loading, navigate]);
+  }, [projectId, user, authLoading, navigate]);
 
   useEffect(() => {
     if (selectedBoard) {
       fetchBoardData();
     }
-  }, [selectedBoard]);
+  }, [selectedBoard, projectTags]);
 
   const fetchProjectData = async () => {
     try {
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single();
+      const [projectResponse, boardsResponse, tagsResponse] = await Promise.all([
+        supabase
+          .from('projects')
+          .select('*')
+          .eq('id', projectId)
+          .single(),
+        supabase
+          .from('boards')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('project_tags')
+          .select('*')
+          .eq('project_id', projectId)
+      ]);
 
-      if (projectError) throw projectError;
-      setProject(projectData);
+      if (projectResponse.error) throw projectResponse.error;
+      setProject(projectResponse.data);
 
-      const { data: boardsData, error: boardsError } = await supabase
-        .from('boards')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+      if (boardsResponse.error) throw boardsResponse.error;
+      setBoards(boardsResponse.data || []);
 
-      if (boardsError) throw boardsError;
-      setBoards(boardsData || []);
+      if (tagsResponse.error && tagsResponse.error.code !== 'PGRST116') {
+        // Ignore if table doesn't exist yet (during migration) or just log
+        console.log("Tags fetch warning:", tagsResponse.error);
+      }
+      setProjectTags(tagsResponse.data || []);
 
-      if (boardsData && boardsData.length > 0) {
-        setSelectedBoard(boardsData[0]);
+
+
+      // Fetch potential assignees (members)
+      // For now, let's just fetch all profiles as we don't have a direct atomic "project_members" join easy here without knowing exact policy
+      // Ideally: select * from profiles where user_id in (select user_id from project_members where project_id = ...)
+      // But let's simplified: fetch all profiles for now or assume we can fetch them.
+      // Better: Fetch project members if the table exists
+      const { data: members, error: membersError } = await supabase
+        .from('project_members')
+        .select('user_id, role')
+        .eq('project_id', projectId);
+
+      if (!membersError && members) {
+        const userIds = members.map(m => m.user_id);
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('user_id', userIds);
+          setProjectMembers(profiles || []);
+        }
+      }
+
+      if (boardsResponse.data && boardsResponse.data.length > 0) {
+        // Only override if we don't have a selection or the selection is invalid
+        setSelectedBoard(prev => prev ? prev : boardsResponse.data[0]);
       }
     } catch (error: any) {
       toast({
@@ -167,28 +220,68 @@ const Project = () => {
         .from('board_columns')
         .select(`
           *,
-          tasks (
-            *,
-            task_checklist_items (*)
-          )
+          tasks (*)
         `)
         .eq('board_id', selectedBoard.id)
         .order('position', { ascending: true });
 
       if (columnsError) throw columnsError;
 
-      // Sort tasks and checklists locally since nested order is tricky in one query depending on lib version
-      // Or we accept default order and sort in client.
-      const columns = columnsData || [];
-      setColumns(columns.map(({ tasks, ...col }) => col));
+      const columnsRaw = columnsData || [];
+
+      // Extract Task IDs to fetch related data
+      const allTasksRaw = columnsRaw.flatMap(col => col.tasks || []);
+      const taskIds = allTasksRaw.map((t: any) => t.id);
+
+      // Fetch Checklists and Tags manually (Robust separate queries)
+      let checklists: any[] = [];
+      let taskTagsRef: any[] = [];
+
+      if (taskIds.length > 0) {
+        const { data: checklistsData } = await supabase
+          .from('task_checklist_items')
+          .select('*')
+          .in('task_id', taskIds);
+
+        const { data: taskTagsData } = await supabase
+          .from('task_tags')
+          .select('task_id, tag_id')
+          .in('task_id', taskIds);
+
+        checklists = checklistsData || [];
+        taskTagsRef = taskTagsData || [];
+      }
+
+      // Map data back to columns structure
+      const columns = columnsRaw.map((col: any) => ({
+        ...col,
+        tasks: (col.tasks || []).map((task: any) => {
+          const taskChecklists = checklists.filter(c => c.task_id === task.id).sort((a: any, b: any) => a.position - b.position);
+
+          // Map tag relationship to actual tag objects
+          const taskTagsObjects = taskTagsRef
+            .filter(tt => tt.task_id === task.id)
+            .map(tt => projectTags.find(pt => pt.id === tt.tag_id))
+            .filter(Boolean);
+
+          return {
+            ...task,
+            task_checklist_items: taskChecklists,
+            tags: taskTagsObjects
+          };
+        })
+      }));
+
+      // Flatten for sorting/state
+      setColumns(columns);
 
       const allTasks = columns.flatMap(col => col.tasks || [])
         .sort((a: any, b: any) => a.position - b.position);
       setTasks(allTasks);
 
-      const allChecklists = allTasks.flatMap((task: any) => task.task_checklist_items || [])
-        .sort((a: any, b: any) => a.position - b.position);
+      const allChecklists = allTasks.flatMap((task: any) => task.task_checklist_items || []);
       setChecklistItems(allChecklists);
+
 
     } catch (error: any) {
       toast({
@@ -901,8 +994,42 @@ const Project = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-[#0f1115] relative overflow-hidden flex flex-col">
+        {/* Skeleton Header */}
+        <div className="bg-[#1a1d23]/80 border-b border-white/5 h-20 flex items-center px-6 sticky top-0 z-50">
+          <Skeleton className="h-10 w-32 bg-white/5 rounded-full" />
+          <div className="h-8 w-px bg-white/10 mx-6" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48 bg-white/5" />
+            <Skeleton className="h-3 w-32 bg-white/5" />
+          </div>
+        </div>
+
+        {/* Skeleton Sub-nav */}
+        <div className="bg-[#15181e] h-16 border-b border-white/5 px-6 flex items-center gap-3">
+          <Skeleton className="h-10 w-32 bg-white/10 rounded-full" />
+          <Skeleton className="h-10 w-24 bg-white/5 rounded-full" />
+          <Skeleton className="h-10 w-28 bg-white/5 rounded-full" />
+        </div>
+
+        {/* Skeleton Kanban Board */}
+        <div className="flex-grow p-8 flex gap-8 overflow-hidden">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="w-80 flex-shrink-0 flex flex-col gap-4">
+              {/* Column Header Skeleton */}
+              <div className="h-14 bg-white/5 rounded-xl flex items-center px-4 justify-between border border-white/5">
+                <Skeleton className="h-5 w-32 bg-white/5" />
+                <Skeleton className="h-6 w-6 rounded-full bg-white/5" />
+              </div>
+              {/* content */}
+              <div className="flex-1 space-y-4">
+                <Skeleton className="h-32 w-full bg-white/5 rounded-xl" />
+                <Skeleton className="h-24 w-full bg-white/5 rounded-xl" />
+                <Skeleton className="h-32 w-full bg-white/5 rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1185,6 +1312,9 @@ const Project = () => {
                           newTaskPriority={newTaskPriority}
                           setNewTaskPriority={setNewTaskPriority}
                           onCreateTask={createTaskInColumn}
+                          projectTags={projectTags}
+                          projectMembers={projectMembers}
+                          projectId={projectId}
                         />
                       ))}
 
@@ -1252,6 +1382,9 @@ const Project = () => {
                         onDelete={() => { }}
                         onUpdate={() => { }}
                         getPriorityColor={getPriorityColor}
+                        projectTags={projectTags}
+                        projectMembers={projectMembers}
+                        projectId={projectId}
                       />
                     </div>
                   ) : null}

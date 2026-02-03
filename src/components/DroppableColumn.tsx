@@ -42,6 +42,20 @@ interface ChecklistItem {
   position: number;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  project_id: string;
+}
+
+interface Profile {
+  user_id: string;
+  approved: boolean;
+  full_name?: string;
+  email?: string;
+}
+
 interface DroppableColumnProps {
   column: Column;
   tasks: Task[];
@@ -62,6 +76,9 @@ interface DroppableColumnProps {
   newTaskPriority: 'low' | 'medium' | 'high';
   setNewTaskPriority: (priority: 'low' | 'medium' | 'high') => void;
   onCreateTask: (columnId: string) => void;
+  projectTags: Tag[];
+  projectMembers: Profile[];
+  projectId?: string;
 }
 
 export const DroppableColumn = ({
@@ -84,6 +101,9 @@ export const DroppableColumn = ({
   newTaskPriority,
   setNewTaskPriority,
   onCreateTask,
+  projectTags = [],
+  projectMembers = [],
+  projectId,
 }: DroppableColumnProps) => {
   const { setNodeRef } = useDroppable({
     id: column.id,
@@ -162,6 +182,9 @@ export const DroppableColumn = ({
               onDelete={onDeleteTask}
               onUpdate={onUpdateTasks}
               getPriorityColor={getPriorityColor}
+              projectTags={projectTags}
+              projectMembers={projectMembers}
+              projectId={projectId}
             />
           ))}
         </SortableContext>

@@ -28,16 +28,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const checkApprovalStatus = async (session: any) => {
       if (!session?.user) {
-        console.log('🔍 checkApprovalStatus: Sem usuário na sessão');
         return false;
       }
 
-      console.log('🔍 checkApprovalStatus: Verificando aprovação para', session.user.id);
-
       try {
-        // Adicionar timeout de 10 segundos para evitar travamento
+        // Reduced timeout to 5s to avoid long blocking
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout na verificação de aprovação')), 10000);
+          setTimeout(() => reject(new Error('Timeout na verificação de aprovação')), 5000);
         });
 
         const queryPromise = supabase
@@ -47,22 +44,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-        
-        console.log('🔍 checkApprovalStatus: Resultado da query:', { profile, error });
-        
+
         if (error) {
           console.error('❌ Erro na query de aprovação:', error);
           return false;
         }
-        
-        const isApproved = profile?.approved || false;
-        console.log('🔍 checkApprovalStatus: Status final:', isApproved);
-        return isApproved;
+
+        return profile?.approved || false;
       } catch (error) {
         console.error('❌ Erro ao verificar aprovação (possivelmente timeout):', error);
-        // Para o admin, sempre permitir acesso mesmo se houver erro
+        // Fallback for admin
         if (session.user.email === 'contato@leadsign.com.br') {
-          console.log('🔓 Admin detectado, permitindo acesso mesmo com erro');
           return true;
         }
         return false;
@@ -85,7 +77,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             filter: `user_id=eq.${userId}`
           },
           (payload) => {
-            console.log('🔔 Profile updated via realtime:', payload);
             setApproved(payload.new.approved || false);
           }
         )
@@ -95,18 +86,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔄 Auth state changed:', event, session?.user?.email || 'no user');
-        console.log('🔄 Session:', session ? 'exists' : 'null');
-        
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         if (session?.user) {
-          setLoading(true);
-          
+          // Don't set loading=true on every auth change if we already have a user, to prevent flicker
+          // But we do need to check approval
+          if (event === 'INITIAL_SESSION') {
+            setLoading(true);
+          }
+
           try {
             const isApproved = await checkApprovalStatus(session);
-            console.log('🔄 Definindo approved como:', isApproved);
             setApproved(isApproved);
             setupRealtimeSubscription(session.user.id);
           } catch (error) {
@@ -126,12 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Check for existing session - only set initial state, auth listener will handle the rest
+    // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setLoading(false);
       }
-      // If session exists, the auth listener will handle it
     });
 
     return () => {
@@ -144,7 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -195,26 +185,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshApprovalStatus = async () => {
     if (!user?.id) return;
-    
+
     try {
       console.log('🔄 Atualizando status de aprovação para:', user.id);
-      
+
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('approved')
         .eq('user_id', user.id)
         .maybeSingle();
-      
+
       if (error) {
         console.error('❌ Erro ao buscar perfil:', error);
         // Não faça throw do erro, apenas registre e mantenha o estado atual
         console.log('⚠️ Mantendo status atual de aprovação');
         return;
       }
-      
+
       console.log('📋 Status atual do perfil:', profile);
       setApproved(profile?.approved || false);
-      
+
       toast({
         title: "Status atualizado",
         description: profile?.approved ? "Sua conta foi aprovada!" : "Ainda aguardando aprovação",

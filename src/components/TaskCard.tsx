@@ -7,10 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { MoreVertical, Copy, Trash2, GripVertical, CheckSquare, Plus, X } from 'lucide-react';
+import { MoreVertical, Copy, Trash2, GripVertical, CheckSquare, Plus, X, Tag as TagIcon, User as UserIcon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,6 +37,21 @@ interface Task {
   created_by: string;
   created_at: string;
   updated_at: string;
+  tags?: Tag[];
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  project_id: string;
+}
+
+interface Profile {
+  user_id: string;
+  approved: boolean;
+  full_name?: string;
+  email?: string;
 }
 
 interface TaskCardProps {
@@ -44,6 +61,9 @@ interface TaskCardProps {
   onDelete: (taskId: string, taskTitle: string) => void;
   onUpdate: () => void;
   getPriorityColor: (priority: string) => string;
+  projectTags?: Tag[];
+  projectMembers?: Profile[];
+  projectId?: string;
 }
 
 export const TaskCard = ({
@@ -52,12 +72,16 @@ export const TaskCard = ({
   onDuplicate,
   onDelete,
   onUpdate,
-  getPriorityColor
+  getPriorityColor,
+  projectTags = [],
+  projectMembers = [],
+  projectId
 }: TaskCardProps) => {
   const [showDetails, setShowDetails] = useState(false);
   const [editingTitle, setEditingTitle] = useState(task.title);
   const [editingDescription, setEditingDescription] = useState(task.description || '');
   const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [newTaskTag, setNewTaskTag] = useState('');
   const { toast } = useToast();
 
   const {
@@ -107,6 +131,87 @@ export const TaskCard = ({
     }
   };
 
+  const updateAssignee = async (userId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ assigned_to: userId })
+        .eq('id', task.id);
+
+      if (error) throw error;
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atribuir responsável",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleTag = async (tagId: string) => {
+    const hasTag = task.tags?.some(t => t.id === tagId);
+    try {
+      if (hasTag) {
+        // Find the record to delete. Since we don't have the task_tag ID easily, we match by task_id and tag_id
+        const tagToDelete = task.tags?.find(t => t.id === tagId);
+        // We use delete with match
+        await supabase.from('task_tags').delete().match({ task_id: task.id, tag_id: tagId });
+      } else {
+        await supabase.from('task_tags').insert({ task_id: task.id, tag_id: tagId });
+      }
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar etiqueta",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const createTag = async () => {
+    if (!newTaskTag.trim()) return;
+    try {
+      // Check if exists
+      const existing = projectTags.find(pt => pt.name.toLowerCase() === newTaskTag.toLowerCase());
+      if (existing) {
+        await toggleTag(existing.id);
+      } else {
+        // Create new
+        // We need the project ID. Since we are in a task, we might not have it directly on the task object if not joined.
+        // But we have projectTags which have project_id. Let's try to get it from there or fallback.
+        // Ideally the parent should pass projectId. For now assuming projectTags has items or we need another way.
+        const projectId = projectTags.length > 0 ? projectTags[0].project_id : (task as any).project_id;
+
+        if (!projectId) {
+          toast({ title: "Erro", description: "Não foi possível identificar o projeto.", variant: "destructive" });
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('project_tags')
+          .insert({
+            name: newTaskTag,
+            color: '#' + Math.floor(Math.random() * 16777215).toString(16), // Random color for now
+            project_id: projectId
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (data) {
+          await supabase.from('task_tags').insert({ task_id: task.id, tag_id: data.id });
+        }
+      }
+      setNewTaskTag('');
+      onUpdate();
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: "Erro ao criar etiqueta", description: e.message, variant: "destructive" });
+    }
+  };
+
   const addChecklistItem = async () => {
     if (!newChecklistItem.trim()) return;
 
@@ -122,12 +227,14 @@ export const TaskCard = ({
       if (error) throw error;
 
       setNewChecklistItem('');
+      const { data: { user } } = await supabase.auth.getUser(); // Just to refresh if needed, but onUpdate should handle it
+      onUpdate();
+
       toast({
         title: "Item adicionado!",
         description: "Item do checklist criado com sucesso.",
       });
 
-      onUpdate();
     } catch (error: any) {
       toast({
         title: "Erro ao adicionar item",
@@ -184,7 +291,8 @@ export const TaskCard = ({
           className={`absolute left-0 top-0 bottom-0 w-1 ${getPriorityColor(task.priority)}`}
         />
 
-        <CardHeader className="p-3 pl-4 space-y-0">
+        <CardHeader className="p-3 pb-0 space-y-2">
+
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -205,6 +313,26 @@ export const TaskCard = ({
               <CardTitle className="text-sm font-medium leading-snug text-card-foreground group-hover:text-primary transition-colors line-clamp-2">
                 {task.title}
               </CardTitle>
+              {task.tags && task.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {task.tags.map(tag => (
+                    <div key={tag.id} className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: `${tag.color}20`, color: tag.color, border: `1px solid ${tag.color}40` }}>
+                      {tag.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-0.5 -mr-1">
+              {task.assigned_to && (
+                <Avatar className="h-6 w-6 border-2 border-background">
+                  <AvatarImage src={`https://avatar.vercel.sh/${task.assigned_to}`} />
+                  <AvatarFallback className="text-[9px]">
+                    {projectMembers.find(m => m.user_id === task.assigned_to)?.full_name?.substring(0, 2).toUpperCase() || '??'}
+                  </AvatarFallback>
+                </Avatar>
+              )}
             </div>
 
             <div className="flex items-center gap-0.5 -mr-1">
@@ -236,7 +364,7 @@ export const TaskCard = ({
         </CardHeader>
 
         {task.description && (
-          <CardContent className="pb-3 pl-4 pr-3 pt-0">
+          <CardContent className="p-3 space-y-3">
             <p className="text-xs text-muted-foreground/70 line-clamp-2">
               {task.description}
             </p>
@@ -244,7 +372,6 @@ export const TaskCard = ({
         )}
       </Card>
 
-      {/* Task Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col glass-morphism border-white/20 p-0 rounded-2xl shadow-2xl">
           <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
@@ -322,11 +449,11 @@ export const TaskCard = ({
                     {taskChecklistItems
                       .sort((a, b) => a.position - b.position)
                       .map((item) => (
-                        <div key={item.id} className="group/item flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all">
+                        <div key={item.id} className="group/item flex items-center gap-3 p-4 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 transition-all">
                           <Checkbox
                             checked={item.completed}
                             onCheckedChange={(checked) => toggleChecklistItem(item.id, checked as boolean)}
-                            className="w-5 h-5 rounded-md border-white/30"
+                            className="w-5 h-5 rounded-md border-2 border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary"
                           />
                           <span className={`flex-1 text-sm font-medium transition-all ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground/90'}`}>
                             {item.text}
@@ -366,6 +493,70 @@ export const TaskCard = ({
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Criado em</p>
                       <p className="text-sm font-medium">{new Date(task.created_at).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Assignee Selection */}
+                <div className="space-y-4 pt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Responsável</h4>
+                  <div className="space-y-2">
+                    <Select value={task.assigned_to || 'unassigned'} onValueChange={(val) => updateAssignee(val === 'unassigned' ? null : val)}>
+                      <SelectTrigger className="w-full bg-white/5 border-white/10">
+                        <SelectValue placeholder="Sem responsável" />
+                      </SelectTrigger>
+                      <SelectContent className="glass-morphism">
+                        <SelectItem value="unassigned">Sem responsável</SelectItem>
+                        {projectMembers.map(member => (
+                          <SelectItem key={member.user_id} value={member.user_id}>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-5 w-5">
+                                <AvatarFallback className="text-[8px]">{member.full_name?.substring(0, 2)}</AvatarFallback>
+                              </Avatar>
+                              {member.full_name || member.email}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Tags Selection */}
+                <div className="space-y-4 pt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Etiquetas</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {projectTags.map(tag => {
+                      const isSelected = task.tags?.some(t => t.id === tag.id);
+                      return (
+                        <Badge
+                          key={tag.id}
+                          variant={isSelected ? "default" : "outline"}
+                          className="cursor-pointer hover:opacity-80 transition-opacity"
+                          style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : { borderColor: tag.color, color: tag.color }}
+                          onClick={() => toggleTag(tag.id)}
+                        >
+                          {tag.name}
+                        </Badge>
+                      );
+                    })}
+
+                    <div className="flex items-center gap-2 w-full mt-2">
+                      <Input
+                        placeholder="Nova etiqueta..."
+                        className="h-7 text-xs bg-white/5 border-white/10"
+                        value={newTaskTag}
+                        onChange={(e) => setNewTaskTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            createTag();
+                          }
+                        }}
+                      />
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={createTag}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
