@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck } from 'lucide-react';
+import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TrialBanner } from '@/components/TrialBanner';
 
@@ -45,7 +45,6 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // ... existing useEffect
     console.log('🔍 Dashboard useEffect:', { authLoading, user: user?.email, approved });
 
     if (!authLoading && !user) {
@@ -66,13 +65,235 @@ const Dashboard = () => {
     }
   }, [user, approved, authLoading, navigate]);
 
-  // ... (fetchProjects, fetchUserProfile, createProject, duplicateProject, deleteProject exist above or below?)
-  // We need to make sure we don't delete them or duplicate them.
-  // The tool replaces lines 42-716 of the original file (if I map correctly). 
-  // Wait, I should replace specific blocks or the whole file content if it's too messed up.
-  // The View output showed lines 590-716 which contains the mess.
-  // The state declarations were inserted in the middle of JSX (lines 600-602).
-  // I need to extract them to the top and clean the JSX.
+  const fetchProjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProjects(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar projetos",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Erro ao carregar perfil do usuário:', error);
+    }
+  };
+
+  const createProject = async () => {
+    if (!user?.id) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Você precisa estar logado para criar projetos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const projectName = prompt('Nome do projeto:');
+    if (!projectName) return;
+
+    const projectDescription = prompt('Descrição do projeto (opcional):') || '';
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .insert([{
+          name: projectName,
+          description: projectDescription,
+          created_by: user.id
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Projeto criado!",
+        description: `O projeto "${projectName}" foi criado com sucesso.`,
+      });
+
+      fetchProjects();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar projeto",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const duplicateProject = async (projectId: string, projectName: string) => {
+    if (!user?.id) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Você precisa estar logado para duplicar projetos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Get original project
+      const { data: originalProject, error: projectError } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single();
+
+      if (projectError) throw projectError;
+
+      // Create new project
+      const { data: newProject, error: newProjectError } = await supabase
+        .from('projects')
+        .insert([{
+          name: `${originalProject.name} (Cópia)`,
+          description: originalProject.description,
+          created_by: user.id
+        }])
+        .select()
+        .single();
+
+      if (newProjectError) throw newProjectError;
+
+      // Get all boards from original project
+      const { data: originalBoards, error: boardsError } = await supabase
+        .from('boards')
+        .select('*')
+        .eq('project_id', projectId);
+
+      if (boardsError) throw boardsError;
+
+      // Duplicate each board
+      for (const board of originalBoards || []) {
+        const { data: newBoard, error: newBoardError } = await supabase
+          .from('boards')
+          .insert([{
+            name: board.name,
+            project_id: newProject.id
+          }])
+          .select()
+          .single();
+
+        if (newBoardError) throw newBoardError;
+
+        // Get columns from original board
+        const { data: originalColumns, error: columnsError } = await supabase
+          .from('board_columns')
+          .select('*')
+          .eq('board_id', board.id)
+          .order('position');
+
+        if (columnsError) throw columnsError;
+
+        // Duplicate columns
+        const columnMapping: { [key: string]: string } = {};
+        for (const column of originalColumns || []) {
+          const { data: newColumn, error: newColumnError } = await supabase
+            .from('board_columns')
+            .insert([{
+              name: column.name,
+              color: column.color,
+              position: column.position,
+              board_id: newBoard.id
+            }])
+            .select()
+            .single();
+
+          if (newColumnError) throw newColumnError;
+          columnMapping[column.id] = newColumn.id;
+        }
+
+        // Get tasks from original columns
+        const { data: originalTasks, error: tasksError } = await supabase
+          .from('tasks')
+          .select('*')
+          .in('column_id', Object.keys(columnMapping))
+          .order('position');
+
+        if (tasksError) throw tasksError;
+
+        // Duplicate tasks
+        for (const task of originalTasks || []) {
+          const { error: newTaskError } = await supabase
+            .from('tasks')
+            .insert([{
+              title: task.title,
+              description: task.description,
+              column_id: columnMapping[task.column_id],
+              position: task.position,
+              priority: task.priority,
+              due_date: task.due_date,
+              completed: false, // Reset completion status
+              created_by: user.id
+            }]);
+
+          if (newTaskError) throw newTaskError;
+        }
+      }
+
+      toast({
+        title: "Projeto duplicado!",
+        description: `O projeto "${originalProject.name}" foi duplicado com sucesso.`,
+      });
+
+      fetchProjects();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao duplicar projeto",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteProject = async (projectId: string, projectName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o projeto "${projectName}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Projeto excluído!",
+        description: `O projeto "${projectName}" foi excluído com sucesso.`,
+      });
+
+      fetchProjects();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir projeto",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const updateProject = async () => {
     if (!renamingProjectId || !renamingProjectName.trim()) return;
@@ -103,493 +324,213 @@ const Dashboard = () => {
     }
   };
 
-  // ... (existing functions) ...
-  // Since I cannot see the whole file to safely replace just the mess without potentially duplicating functions if I paste them back,
-  // I will target the messy blocks.
+  const fetchProjectMembers = async (projectId: string) => {
+    setLoadingMembers(true);
+    try {
+      const { data: members, error } = await supabase
+        .from('project_members')
+        .select('id, user_id, role')
+        .eq('project_id', projectId);
 
-  // Block 1: The mess at the bottom (dropdown menu)
-  // Block 2: The state definitions that shouldn't be there.
+      if (error) throw error;
 
-  // Actually, I will read the file again from line 1 to make sure I have the context to do a clean replace of the component body or the messed up parts.
+      const memberIds = members?.map(m => m.user_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, avatar_url')
+        .in('user_id', memberIds);
 
-  // Let's assume the component starts at line 32. 
-  // I will replace the component content with corrected content. But the file is large.
+      if (profilesError) throw profilesError;
 
-  // Strategy:
-  // 1. Remove the messed up state/function from the JSX (lines 600-634).
-  // 2. Add the state/function to the top of the component (lines 40-42).
-  // 3. Fix the DropdownMenu JSX (lines 638-657).
-  // 4. Fix the Dialog JSX (lines 683-709).
+      const membersWithProfiles = members?.map(member => ({
+        ...member,
+        profiles: profiles?.find(p => p.user_id === member.user_id) || {
+          full_name: 'Usuário não encontrado',
+          avatar_url: null
+        }
+      })) || [];
 
-  // Let's use MultiReplace again but be very careful.
+      setProjectMembers(membersWithProfiles);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar membros",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
 
-  console.log('🔍 Dashboard useEffect:', { authLoading, user: user?.email, approved });
+  const shareProject = async () => {
+    if (!shareEmail.trim() || !selectedProjectId) return;
 
-  if (!authLoading && !user) {
-    console.log('🚪 Usuário não autenticado, redirecionando para /auth');
-    navigate('/auth');
-    return;
-  }
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('full_name', shareEmail)
+        .maybeSingle();
 
-  if (!authLoading && user && !approved && user.email !== 'contato@leadsign.com.br') {
-    console.log('❌ Redirecionando para pending-approval:', { approved, email: user.email });
-    navigate('/pending-approval');
-    return;
-  }
-  if (!authLoading && user && (approved || user.email === 'contato@leadsign.com.br')) {
-    console.log('✅ Usuário aprovado, carregando projetos:', { approved, email: user.email });
-    fetchProjects();
-    fetchUserProfile();
-  }
-}, [user, approved, authLoading, navigate]);
+      let userId = profile?.user_id;
 
-const fetchProjects = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false });
+      if (!userId) {
+        toast({
+          title: "Usuário não encontrado",
+          description: "Digite o nome completo do usuário conforme cadastrado no sistema.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (error) throw error;
-    setProjects(data || []);
-  } catch (error: any) {
-    toast({
-      title: "Erro ao carregar projetos",
-      description: error.message,
-      variant: "destructive",
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      const { data: existingMember } = await supabase
+        .from('project_members')
+        .select('id')
+        .eq('project_id', selectedProjectId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
-const fetchUserProfile = async () => {
-  if (!user?.id) return;
+      if (existingMember) {
+        toast({
+          title: "Usuário já é membro",
+          description: "Este usuário já tem acesso ao projeto.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-  try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('created_at')
-      .eq('user_id', user.id)
-      .single();
-
-    if (error) throw error;
-    setUserProfile(profile);
-  } catch (error) {
-    console.error('Erro ao carregar perfil do usuário:', error);
-  }
-};
-
-const createProject = async () => {
-  if (!user?.id) {
-    toast({
-      title: "Erro de autenticação",
-      description: "Você precisa estar logado para criar projetos.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  const projectName = prompt('Nome do projeto:');
-  if (!projectName) return;
-
-  const projectDescription = prompt('Descrição do projeto (opcional):') || '';
-
-  try {
-    const { error } = await supabase
-      .from('projects')
-      .insert([{
-        name: projectName,
-        description: projectDescription,
-        created_by: user.id
-      }]);
-
-    if (error) throw error;
-
-    toast({
-      title: "Projeto criado!",
-      description: `O projeto "${projectName}" foi criado com sucesso.`,
-    });
-
-    fetchProjects();
-  } catch (error: any) {
-    toast({
-      title: "Erro ao criar projeto",
-      description: error.message,
-      variant: "destructive",
-    });
-  }
-};
-
-const duplicateProject = async (projectId: string, projectName: string) => {
-  if (!user?.id) {
-    toast({
-      title: "Erro de autenticação",
-      description: "Você precisa estar logado para duplicar projetos.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  try {
-    // Get original project
-    const { data: originalProject, error: projectError } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single();
-
-    if (projectError) throw projectError;
-
-    // Create new project
-    const { data: newProject, error: newProjectError } = await supabase
-      .from('projects')
-      .insert([{
-        name: `${originalProject.name} (Cópia)`,
-        description: originalProject.description,
-        created_by: user.id
-      }])
-      .select()
-      .single();
-
-    if (newProjectError) throw newProjectError;
-
-    // Get all boards from original project
-    const { data: originalBoards, error: boardsError } = await supabase
-      .from('boards')
-      .select('*')
-      .eq('project_id', projectId);
-
-    if (boardsError) throw boardsError;
-
-    // Duplicate each board
-    for (const board of originalBoards || []) {
-      const { data: newBoard, error: newBoardError } = await supabase
-        .from('boards')
+      const { error } = await supabase
+        .from('project_members')
         .insert([{
-          name: board.name,
-          project_id: newProject.id
-        }])
-        .select()
-        .single();
+          project_id: selectedProjectId,
+          user_id: userId,
+          role: 'client'
+        }]);
 
-      if (newBoardError) throw newBoardError;
+      if (error) throw error;
 
-      // Get columns from original board
-      const { data: originalColumns, error: columnsError } = await supabase
-        .from('board_columns')
-        .select('*')
-        .eq('board_id', board.id)
-        .order('position');
-
-      if (columnsError) throw columnsError;
-
-      // Duplicate columns
-      const columnMapping: { [key: string]: string } = {};
-      for (const column of originalColumns || []) {
-        const { data: newColumn, error: newColumnError } = await supabase
-          .from('board_columns')
-          .insert([{
-            name: column.name,
-            color: column.color,
-            position: column.position,
-            board_id: newBoard.id
-          }])
-          .select()
-          .single();
-
-        if (newColumnError) throw newColumnError;
-        columnMapping[column.id] = newColumn.id;
-      }
-
-      // Get tasks from original columns
-      const { data: originalTasks, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .in('column_id', Object.keys(columnMapping))
-        .order('position');
-
-      if (tasksError) throw tasksError;
-
-      // Duplicate tasks
-      for (const task of originalTasks || []) {
-        const { error: newTaskError } = await supabase
-          .from('tasks')
-          .insert([{
-            title: task.title,
-            description: task.description,
-            column_id: columnMapping[task.column_id],
-            position: task.position,
-            priority: task.priority,
-            due_date: task.due_date,
-            completed: false, // Reset completion status
-            created_by: user.id
-          }]);
-
-        if (newTaskError) throw newTaskError;
-      }
-    }
-
-    toast({
-      title: "Projeto duplicado!",
-      description: `O projeto "${originalProject.name}" foi duplicado com sucesso.`,
-    });
-
-    fetchProjects();
-  } catch (error: any) {
-    toast({
-      title: "Erro ao duplicar projeto",
-      description: error.message,
-      variant: "destructive",
-    });
-  }
-};
-
-const deleteProject = async (projectId: string, projectName: string) => {
-  if (!confirm(`Tem certeza que deseja excluir o projeto "${projectName}"? Esta ação não pode ser desfeita.`)) {
-    return;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', projectId);
-
-    if (error) throw error;
-
-    toast({
-      title: "Projeto excluído!",
-      description: `O projeto "${projectName}" foi excluído com sucesso.`,
-    });
-
-    fetchProjects();
-  } catch (error: any) {
-    toast({
-      title: "Erro ao excluir projeto",
-      description: error.message,
-      variant: "destructive",
-    });
-  }
-};
-
-const fetchProjectMembers = async (projectId: string) => {
-  setLoadingMembers(true);
-  try {
-    const { data: members, error } = await supabase
-      .from('project_members')
-      .select('id, user_id, role')
-      .eq('project_id', projectId);
-
-    if (error) throw error;
-
-    // Buscar informações dos perfis separadamente
-    const memberIds = members?.map(m => m.user_id) || [];
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, avatar_url')
-      .in('user_id', memberIds);
-
-    if (profilesError) throw profilesError;
-
-    // Combinar os dados
-    const membersWithProfiles = members?.map(member => ({
-      ...member,
-      profiles: profiles?.find(p => p.user_id === member.user_id) || {
-        full_name: 'Usuário não encontrado',
-        avatar_url: null
-      }
-    })) || [];
-
-    setProjectMembers(membersWithProfiles);
-  } catch (error: any) {
-    toast({
-      title: "Erro ao carregar membros",
-      description: error.message,
-      variant: "destructive",
-    });
-  } finally {
-    setLoadingMembers(false);
-  }
-};
-
-const shareProject = async () => {
-  if (!shareEmail.trim() || !selectedProjectId) return;
-
-  try {
-    // Primeiro, buscar o usuário pelo email
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('full_name', shareEmail)
-      .maybeSingle();
-
-    // Se não encontrou por nome, buscar por uma query que simule busca por email
-    let userId = profile?.user_id;
-
-    if (!userId) {
       toast({
-        title: "Usuário não encontrado",
-        description: "Digite o nome completo do usuário conforme cadastrado no sistema.",
+        title: "Projeto compartilhado!",
+        description: "Usuário adicionado ao projeto com sucesso.",
+      });
+
+      setShareEmail('');
+      fetchProjectMembers(selectedProjectId);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao compartilhar projeto",
+        description: error.message,
         variant: "destructive",
       });
-      return;
     }
+  };
 
-    // Verificar se o usuário já é membro
-    const { data: existingMember } = await supabase
-      .from('project_members')
-      .select('id')
-      .eq('project_id', selectedProjectId)
-      .eq('user_id', userId)
-      .maybeSingle();
+  const removeMember = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('project_members')
+        .delete()
+        .eq('id', memberId);
 
-    if (existingMember) {
+      if (error) throw error;
+
       toast({
-        title: "Usuário já é membro",
-        description: "Este usuário já tem acesso ao projeto.",
+        title: "Membro removido!",
+        description: "Usuário removido do projeto com sucesso.",
+      });
+
+      fetchProjectMembers(selectedProjectId);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover membro",
+        description: error.message,
         variant: "destructive",
       });
-      return;
     }
+  };
 
-    // Adicionar como membro
-    const { error } = await supabase
-      .from('project_members')
-      .insert([{
-        project_id: selectedProjectId,
-        user_id: userId,
-        role: 'client'
-      }]);
+  const openShareModal = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    fetchProjectMembers(projectId);
+  };
 
-    if (error) throw error;
-
-    toast({
-      title: "Projeto compartilhado!",
-      description: "Usuário adicionado ao projeto com sucesso.",
-    });
-
-    setShareEmail('');
-    fetchProjectMembers(selectedProjectId);
-  } catch (error: any) {
-    toast({
-      title: "Erro ao compartilhar projeto",
-      description: error.message,
-      variant: "destructive",
-    });
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
   }
-};
 
-const removeMember = async (memberId: string) => {
-  try {
-    const { error } = await supabase
-      .from('project_members')
-      .delete()
-      .eq('id', memberId);
-
-    if (error) throw error;
-
-    toast({
-      title: "Membro removido!",
-      description: "Usuário removido do projeto com sucesso.",
-    });
-
-    fetchProjectMembers(selectedProjectId);
-  } catch (error: any) {
-    toast({
-      title: "Erro ao remover membro",
-      description: error.message,
-      variant: "destructive",
-    });
+  if (!approved && user?.email !== 'contato@leadsign.com.br') {
+    return null;
   }
-};
 
-const openShareModal = (projectId: string) => {
-  setSelectedProjectId(projectId);
-  fetchProjectMembers(projectId);
-};
-
-if (loading || authLoading) {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-    </div>
-  );
-}
-
-if (!approved && user?.email !== 'contato@leadsign.com.br') {
-  return null; // Will redirect to pending approval
-}
-
-return (
-  <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-    {/* Header */}
-    <header className="bg-card border-b shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center gap-2">
-            <Zap className="h-8 w-8 text-primary" />
-            <h1 className="text-xl font-bold">Phoenix Board</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              Olá, {user?.email}
-            </span>
-            {user?.email === 'contato@leadsign.com.br' && (
-              <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
-                <ShieldCheck className="h-4 w-4 mr-2" />
-                Administração
+    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
+      <header className="bg-card border-b shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-2">
+              <Zap className="h-8 w-8 text-primary" />
+              <h1 className="text-xl font-bold">Phoenix Board</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                Olá, {user?.email}
+              </span>
+              {user?.email === 'contato@leadsign.com.br' && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Administração
+                </Button>
+              )}
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações
               </Button>
-            )}
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Configurações
-            </Button>
-            <Button variant="outline" size="sm" onClick={signOut}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Sair
-            </Button>
+              <Button variant="outline" size="sm" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
 
-    {/* Main Content */}
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Trial Banner */}
-      {userProfile?.created_at && (
-        <TrialBanner userCreatedAt={userProfile.created_at} />
-      )}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {userProfile?.created_at && (
+          <TrialBanner userCreatedAt={userProfile.created_at} />
+        )}
 
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Meus Projetos</h2>
-          <p className="text-muted-foreground mt-1">
-            Gerencie seus projetos e boards de forma eficiente
-          </p>
-        </div>
-        <Button onClick={createProject} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Projeto
-        </Button>
-      </div>
-
-      {/* Projects Grid */}
-      {projects.length === 0 ? (
-        <div className="text-center py-16">
-          <Zap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-xl font-semibold mb-2">Nenhum projeto ainda</h3>
-          <p className="text-muted-foreground mb-6">
-            Crie seu primeiro projeto para começar a organizar suas tarefas
-          </p>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Meus Projetos</h2>
+            <p className="text-muted-foreground mt-1">
+              Gerencie seus projetos e boards de forma eficiente
+            </p>
+          </div>
           <Button onClick={createProject} className="gap-2">
             <Plus className="h-4 w-4" />
-            Criar Primeiro Projeto
+            Novo Projeto
           </Button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => (
+
+        {projects.length === 0 ? (
+          <div className="text-center py-16">
+            <Zap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Nenhum projeto ainda</h3>
+            <p className="text-muted-foreground mb-6">
+              Crie seu primeiro projeto para começar a organizar suas tarefas
+            </p>
+            <Button onClick={createProject} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Criar Primeiro Projeto
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projects.map((project) => (
               <Card key={project.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -637,7 +578,6 @@ return (
                                 </div>
                               </div>
 
-                              {/* Lista de membros */}
                               <div className="space-y-2">
                                 <Label>Membros do projeto</Label>
                                 {loadingMembers ? (
@@ -688,59 +628,10 @@ return (
                           <Edit className="h-4 w-4 mr-2" />
                           Renomear Projeto
                         </DropdownMenuItem>
-                        const [renamingProjectName, setRenamingProjectName] = useState('');
-
-  // ... (previous imports and hooks remain)
-
-  // Add updateProject function
-  const updateProject = async () => {
-    if (!renamingProjectId || !renamingProjectName.trim()) return;
-
-                        try {
-      const {error} = await supabase
-                        .from('projects')
-                        .update({name: renamingProjectName })
-                        .eq('id', renamingProjectId);
-
-                        if (error) throw error;
-
-                        toast({
-                          title: "Projeto renomeado!",
-                        description: "O nome do projeto foi atualizado com sucesso.",
-      });
-
-                        setIsRenamingProject(false);
-                        setRenamingProjectId('');
-                        setRenamingProjectName('');
-                        fetchProjects();
-    } catch (error: any) {
-                          toast({
-                            title: "Erro ao renomear projeto",
-                            description: error.message,
-                            variant: "destructive",
-                          });
-    }
-  };
-
-                        // ... inside return ...
-
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setRenamingProjectId(project.id);
-                            setRenamingProjectName(project.name);
-                            setIsRenamingProject(true);
-                          }}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Renomear Projeto
-                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => deleteProject(project.id, project.name)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir Projeto
-                        </DropdownMenuItem>
                           <Trash2 className="h-4 w-4 mr-2" />
                           Excluir Projeto
                         </DropdownMenuItem>
@@ -764,41 +655,38 @@ return (
                   </Button>
                 </CardContent>
               </Card>
-      ))}
-  </div>
-)
-}
+            ))}
+          </div>
+        )}
 
-{/* Rename Project Dialog */ }
-<Dialog open={isRenamingProject} onOpenChange={setIsRenamingProject}>
-  <DialogContent className="glass-morphism border-white/20">
-    <DialogHeader>
-      <DialogTitle className="text-2xl font-black tracking-tight">Renomear Projeto</DialogTitle>
-      <DialogDescription className="text-foreground/60">
-        Digite o novo nome para o projeto
-      </DialogDescription>
-    </DialogHeader>
-    <div className="space-y-6 py-4">
-      <div className="space-y-2">
-        <Label htmlFor="renameProjectName" className="font-bold text-sm tracking-wider uppercase ml-1">Novo Nome</Label>
-        <Input
-          id="renameProjectName"
-          value={renamingProjectName}
-          onChange={(e) => setRenamingProjectName(e.target.value)}
-          placeholder="Ex: Marketing 2024"
-          className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
-          onKeyPress={(e) => e.key === 'Enter' && updateProject()}
-        />
-      </div>
-      <Button onClick={updateProject} className="w-full h-12 bg-primary font-bold text-lg rounded-xl shadow-xl shadow-primary/10 transition-all active:scale-95">
-        Salvar Alterações
-      </Button>
+        <Dialog open={isRenamingProject} onOpenChange={setIsRenamingProject}>
+          <DialogContent className="glass-morphism border-white/20">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight">Renomear Projeto</DialogTitle>
+              <DialogDescription className="text-foreground/60">
+                Digite o novo nome para o projeto
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="renameProjectName" className="font-bold text-sm tracking-wider uppercase ml-1">Novo Nome</Label>
+                <Input
+                  id="renameProjectName"
+                  value={renamingProjectName}
+                  onChange={(e) => setRenamingProjectName(e.target.value)}
+                  placeholder="Ex: Marketing 2024"
+                  className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
+                  onKeyPress={(e) => e.key === 'Enter' && updateProject()}
+                />
+              </div>
+              <Button onClick={updateProject} className="w-full h-12 bg-primary font-bold text-lg rounded-xl shadow-xl shadow-primary/10 transition-all active:scale-95">
+                Salvar Alterações
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </main>
     </div>
-  </DialogContent>
-</Dialog>
-
-      </main >
-    </div >
   );
 };
 
