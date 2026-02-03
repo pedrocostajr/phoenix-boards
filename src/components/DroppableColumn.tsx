@@ -94,16 +94,15 @@ export const DroppableColumn = ({
     .sort((a, b) => a.position - b.position);
 
   return (
-    <div className="bg-white/40 backdrop-blur-md rounded-xl border border-white/20 shadow-xl w-80 flex-shrink-0 flex flex-col h-[750px] transition-all hover:bg-white/50 group/column">
-      <div className="p-5 border-b border-white/10">
+    <div
+      className="bg-secondary/40 backdrop-blur-md rounded-xl shadow-lg w-80 flex-shrink-0 flex flex-col h-[750px] transition-all hover:bg-secondary/60 group/column border-t-4"
+      style={{ borderColor: column.color }}
+    >
+      <div className="p-4 border-b border-black/5 dark:border-white/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className="w-4 h-4 rounded-full shadow-lg ring-2 ring-white/50"
-              style={{ backgroundColor: column.color }}
-            />
-            <h3 className="font-bold text-lg tracking-tight text-foreground/90">{column.name}</h3>
-            <Badge variant="secondary" className="bg-white/20 text-foreground/70 border-none px-2.5 py-0.5 rounded-full font-medium">
+            <h3 className="font-bold text-lg tracking-tight text-foreground">{column.name}</h3>
+            <Badge variant="secondary" className="bg-black/5 dark:bg-white/10 text-foreground/70 border-none px-2.5 py-0.5 rounded-full font-medium">
               {columnTasks.length}
             </Badge>
           </div>
@@ -189,12 +188,12 @@ export const DroppableColumn = ({
             <div className="space-y-5 py-4">
               <div className="space-y-2">
                 <Label htmlFor="quickTaskTitle" className="text-sm font-semibold ml-1">Título da Tarefa</Label>
-                <Input
+                <Textarea
                   id="quickTaskTitle"
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="Ex: Finalizar interface premium"
-                  className="bg-white/5 border-white/10 focus:border-primary/50"
+                  placeholder="Ex: Finalizar interface premium (ou cole uma lista de tarefas)"
+                  className="bg-white/5 border-white/10 focus:border-primary/50 min-h-[80px]"
                 />
               </div>
               <div className="space-y-2">

@@ -165,35 +165,31 @@ const Project = () => {
     try {
       const { data: columnsData, error: columnsError } = await supabase
         .from('board_columns')
-        .select('*')
+        .select(`
+          *,
+          tasks (
+            *,
+            task_checklist_items (*)
+          )
+        `)
         .eq('board_id', selectedBoard.id)
         .order('position', { ascending: true });
 
       if (columnsError) throw columnsError;
-      setColumns(columnsData || []);
 
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select('*')
-        .in('column_id', (columnsData || []).map(col => col.id))
-        .order('position', { ascending: true });
+      // Sort tasks and checklists locally since nested order is tricky in one query depending on lib version
+      // Or we accept default order and sort in client.
+      const columns = columnsData || [];
+      setColumns(columns.map(({ tasks, ...col }) => col));
 
-      if (tasksError) throw tasksError;
-      setTasks(tasksData || []);
+      const allTasks = columns.flatMap(col => col.tasks || [])
+        .sort((a: any, b: any) => a.position - b.position);
+      setTasks(allTasks);
 
-      // Fetch checklist items for all tasks
-      if (tasksData && tasksData.length > 0) {
-        const { data: checklistData, error: checklistError } = await supabase
-          .from('task_checklist_items')
-          .select('*')
-          .in('task_id', tasksData.map(task => task.id))
-          .order('position', { ascending: true });
+      const allChecklists = allTasks.flatMap((task: any) => task.task_checklist_items || [])
+        .sort((a: any, b: any) => a.position - b.position);
+      setChecklistItems(allChecklists);
 
-        if (checklistError) throw checklistError;
-        setChecklistItems(checklistData || []);
-      } else {
-        setChecklistItems([]);
-      }
     } catch (error: any) {
       toast({
         title: "Erro ao carregar board",
@@ -244,8 +240,11 @@ const Project = () => {
     }
   };
 
-  const createTask = async () => {
-    if (!newTaskTitle.trim() || !selectedColumnId || !user?.id) {
+  const createTask = async (columnIdOverride?: string, manualTitle?: string) => {
+    const targetColumnId = columnIdOverride || selectedColumnId;
+    const titleToUse = manualTitle || newTaskTitle;
+
+    if (!titleToUse.trim() || !targetColumnId || !user?.id) {
       if (!user?.id) {
         toast({
           title: "Erro de autenticação",
@@ -256,36 +255,83 @@ const Project = () => {
       return;
     }
 
+    // Check for batch creation (multiple lines) only if it's not a recursive call (manualTitle is undefined)
+    if (!manualTitle && titleToUse.includes('\n')) {
+      const lines = titleToUse.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      if (lines.length > 1) {
+        if (window.confirm(`Detectamos ${lines.length} itens. Deseja criar ${lines.length} cartões individuais?`)) {
+          try {
+            let createdCount = 0;
+            for (const line of lines) {
+              // Clean up common checklist formats like "[ ] Task", "- [ ] Task", "1. Task"
+              const cleanLine = line
+                .replace(/^\[\s*x?\s*\]\s*/i, '') // [ ] or [x]
+                .replace(/^-\s*\[\s*x?\s*\]\s*/i, '') // - [ ]
+                .replace(/^\*\s*/, '') // * Task
+                .replace(/^-\s*/, '') // - Task
+                .replace(/^\d+\.\s*/, ''); // 1. Task
+
+              if (cleanLine.trim()) {
+                await createTask(targetColumnId, cleanLine.trim());
+                createdCount++;
+              }
+            }
+
+            if (createdCount > 0) {
+              setNewTaskTitle('');
+              setNewTaskDescription('');
+              setSelectedColumnId('');
+
+              toast({
+                title: "Criação em massa concluída",
+                description: `${createdCount} tarefas foram criadas com sucesso.`,
+              });
+            }
+          } catch (error) {
+            console.error("Erro na criação em massa:", error);
+          }
+          return;
+        }
+      }
+    }
+
     try {
-      const { error } = await supabase
+      const { data: newTask, error } = await supabase
         .from('tasks')
         .insert([{
-          title: newTaskTitle,
+          title: titleToUse,
           description: newTaskDescription,
-          column_id: selectedColumnId,
+          column_id: targetColumnId,
           priority: newTaskPriority,
-          position: tasks.filter(t => t.column_id === selectedColumnId).length,
+          position: tasks.filter(t => t.column_id === targetColumnId).length,
           created_by: user.id
-        }]);
+        }])
+        .select()
+        .single();
 
       if (error) {
         console.error('❌ Erro Supabase ao criar tarefa:', error);
         throw error;
       }
 
-      toast({
-        title: "Tarefa criada!",
-        description: `A tarefa "${newTaskTitle}" foi criada com sucesso.`,
-      });
+      // Optimistic update
+      setTasks(prev => [...prev, newTask]);
 
-      setNewTaskTitle('');
-      setNewTaskDescription('');
-      setSelectedColumnId('');
+      // Only show toast and clear input if it's a single manual creation
+      if (!manualTitle) {
+        toast({
+          title: "Tarefa criada!",
+          description: `A tarefa "${titleToUse}" foi criada com sucesso.`,
+        });
 
-      // Delay pequeno para garantir que o banco processou antes do refresh
-      setTimeout(() => {
-        fetchBoardData();
-      }, 500);
+        setNewTaskTitle('');
+        setNewTaskDescription('');
+        setSelectedColumnId('');
+      }
+
     } catch (error: any) {
       toast({
         title: "Erro ao criar tarefa",
@@ -831,7 +877,7 @@ const Project = () => {
 
   const createTaskInColumn = (columnId: string) => {
     setSelectedColumnId(columnId);
-    createTask();
+    createTask(columnId);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -1039,6 +1085,18 @@ const Project = () => {
               <div className="flex justify-between items-center mb-10 px-2">
                 <div className="flex items-center gap-4">
                   <h2 className="text-4xl font-black tracking-tighter text-white">{selectedBoard.name}</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setRenamingBoardId(selectedBoard.id);
+                      setRenamingBoardName(selectedBoard.name);
+                      setIsRenamingBoard(true);
+                    }}
+                    className="text-muted-foreground hover:text-white hover:bg-white/10 rounded-full"
+                  >
+                    <Edit className="h-5 w-5" />
+                  </Button>
                   <Badge className="bg-primary/20 text-primary border-primary/30 uppercase font-black tracking-widest text-[10px] py-1 px-3">
                     Live View
                   </Badge>

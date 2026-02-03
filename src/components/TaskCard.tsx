@@ -174,58 +174,60 @@ export const TaskCard = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-3">
       <Card
-        className="group relative overflow-hidden bg-white/70 backdrop-blur-sm border-white/40 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-xl"
+        className="group relative overflow-hidden bg-card hover:bg-card/90 border-l-0 border-r-0 border-b-0 border-t-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer rounded-lg border border-border/40"
         onClick={() => setShowDetails(true)}
       >
-        {/* Priority indicator bar */}
+        {/* Priority indicator strip */}
         <div
-          className={`absolute left-0 top-0 bottom-0 w-1.5 ${getPriorityColor(task.priority)} shadow-[2px_0_8px_rgba(0,0,0,0.1)]`}
+          className={`absolute left-0 top-0 bottom-0 w-1 ${getPriorityColor(task.priority)}`}
         />
 
-        <CardHeader className="pb-3 pt-4 pl-6 pr-4">
-          <div className="flex items-start justify-between">
+        <CardHeader className="p-3 pl-4 space-y-0">
+          <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold py-0 h-4 border-white/50 bg-white/30">
-                  {task.priority === 'high' ? 'Urgente' : task.priority === 'medium' ? 'Médio' : 'Baixo'}
-                </Badge>
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                {task.priority === 'high' && (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold py-0 h-4 border-red-200 bg-red-50 text-red-700">
+                    Urgente
+                  </Badge>
+                )}
                 {taskChecklistItems.length > 0 && (
-                  <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-full bg-primary/5 text-primary">
+                  <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded">
                     <CheckSquare className="h-3 w-3" />
-                    <span className="text-[10px] font-bold">
+                    <span>
                       {completedCount}/{taskChecklistItems.length}
                     </span>
                   </div>
                 )}
               </div>
-              <CardTitle className="text-[15px] font-semibold leading-tight text-foreground/90 group-hover:text-primary transition-colors truncate">
+              <CardTitle className="text-sm font-medium leading-snug text-card-foreground group-hover:text-primary transition-colors line-clamp-2">
                 {task.title}
               </CardTitle>
             </div>
 
-            <div className="flex items-center gap-1">
-              <div {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-black/5 rounded group-hover:opacity-100 opacity-0 transition-opacity">
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-0.5 -mr-1">
+              <div {...listeners} className="cursor-grab active:cursor-grabbing p-1 hover:bg-secondary rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-black/5 rounded-full">
-                    <MoreVertical className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-secondary rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="glass-morphism border-white/20">
+                <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDuplicate(task.id, task.title); }}>
                     <Copy className="h-4 w-4 mr-2" />
-                    Duplicar Tarefa
+                    Duplicar
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
                     onClick={(e) => { e.stopPropagation(); onDelete(task.id, task.title); }}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir Tarefa
+                    Excluir
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -234,8 +236,8 @@ export const TaskCard = ({
         </CardHeader>
 
         {task.description && (
-          <CardContent className="pb-4 pl-6 pr-4 pt-0">
-            <p className="text-xs text-muted-foreground/80 line-clamp-2 leading-relaxed">
+          <CardContent className="pb-3 pl-4 pr-3 pt-0">
+            <p className="text-xs text-muted-foreground/70 line-clamp-2">
               {task.description}
             </p>
           </CardContent>
