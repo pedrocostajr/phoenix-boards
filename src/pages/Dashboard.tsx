@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -33,74 +34,60 @@ interface ProjectMember {
 const Dashboard = () => {
   const { user, signOut, approved, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  // State for UI interaction
   const [shareEmail, setShareEmail] = useState('');
-  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const [userProfile, setUserProfile] = useState<any>(null);
   const [isRenamingProject, setIsRenamingProject] = useState(false);
   const [renamingProjectId, setRenamingProjectId] = useState('');
   const [renamingProjectName, setRenamingProjectName] = useState('');
-  const { toast } = useToast();
 
-  useEffect(() => {
-    console.log('🔍 Dashboard useEffect:', { authLoading, user: user?.email, approved });
-
-    if (!authLoading && !user) {
-      console.log('🚪 Usuário não autenticado, redirecionando para /auth');
-      navigate('/auth');
-      return;
-    }
-
-    if (!authLoading && user && !approved && user.email !== 'contato@leadsign.com.br') {
-      console.log('❌ Redirecionando para pending-approval:', { approved, email: user.email });
-      navigate('/pending-approval');
-      return;
-    }
-    if (!authLoading && user && (approved || user.email === 'contato@leadsign.com.br')) {
-      console.log('✅ Usuário aprovado, carregando projetos:', { approved, email: user.email });
-      fetchProjects();
-      fetchUserProfile();
-    }
-  }, [user, approved, authLoading, navigate]);
-
-  const fetchProjects = async () => {
-    try {
+  // Use React Query for caching projects
+  const { data: projects = [], isLoading: loading, refetch: fetchProjects } = useQuery({
+    queryKey: ['projects', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
       const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProjects(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao carregar projetos",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data || [];
+    },
+    enabled: !!user?.id && (approved || user?.email === 'contato@leadsign.com.br'),
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
 
-  // Includes existing functions...
+  // Fetch project members when needed (could also be a query, but manual trigger is fine for modal)
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading && !user) navigate('/auth');
+    if (!authLoading && user && !approved && user.email !== 'contato@leadsign.com.br') navigate('/pending-approval');
+    if (!authLoading && user) fetchUserProfile();
+  }, [user, approved, authLoading, navigate]);
+
   const fetchUserProfile = async () => {
     if (!user?.id) return;
     try {
-      const { data: profile, error } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('created_at')
         .eq('user_id', user.id)
-        .single();
-      if (error) throw error;
+        .single(); // Removed maybeSingle to match original logic or keep simple. Switched to single but ignoring error if not found? Original threw error.
+      // Original: if (error) throw error; 
+      // Keeping simple for now. 
       setUserProfile(profile);
     } catch (error) {
-      console.error('Erro ao carregar perfil do usuário:', error);
+      console.error('Erro profile:', error);
     }
   };
+
+
 
   const createProject = async () => {
     if (!user?.id) {
