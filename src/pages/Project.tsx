@@ -1015,8 +1015,8 @@ const Project = () => {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover/tab:opacity-100 transition-opacity rounded-full hover:bg-white/10">
-                        <MoreVertical className="h-3 w-3" />
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-white transition-opacity rounded-full hover:bg-white/10 ml-1">
+                        <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="glass-morphism border-white/20">
