@@ -75,6 +75,7 @@ export const TaskCard = ({
   onUpdate,
   getPriorityColor,
   projectTags = [],
+  onTagsUpdate,
   projectMembers = [],
   projectId
 }: TaskCardProps) => {
