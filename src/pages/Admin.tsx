@@ -10,20 +10,24 @@ import { Zap, LogOut, Settings, Check, X, Users, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AddUserForm } from '@/components/AddUserForm';
 
-interface UserProfile {
-  id: string;
-  user_id: string;
-  full_name: string;
-  role: string;
-  approved: boolean;
+interface AdminUser {
+  id: string; // auth.users id
+  email: string;
+  email_confirmed_at: string | null;
+  last_sign_in_at: string | null;
   created_at: string;
-  avatar_url: string | null;
+  profile: {
+    full_name: string;
+    role: string;
+    approved: boolean;
+    avatar_url: string | null;
+  } | null;
 }
 
 const Admin = () => {
   const { user: currentUser, signOut } = useAuth();
   const navigate = useNavigate();
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -46,14 +50,15 @@ const Admin = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      setLoading(true);
+      const { data, error } = await supabase.functions.invoke('admin-list-users');
 
       if (error) throw error;
-      setUsers(data || []);
+
+      console.log('Admin users list:', data.users);
+      setUsers(data.users || []);
     } catch (error: any) {
+      console.error('Error fetching users:', error);
       toast({
         title: "Erro ao carregar usuários",
         description: error.message,
@@ -67,7 +72,7 @@ const Admin = () => {
   const approveUser = async (userId: string) => {
     try {
       console.log('🔄 Aprovando usuário:', userId);
-      
+
       const { error } = await supabase
         .from('profiles')
         .update({ approved: true })
@@ -99,7 +104,7 @@ const Admin = () => {
   const rejectUser = async (userId: string) => {
     try {
       console.log('🔄 Removendo aprovação do usuário:', userId);
-      
+
       const { error } = await supabase
         .from('profiles')
         .update({ approved: false })
@@ -135,7 +140,7 @@ const Admin = () => {
 
     try {
       console.log('🔄 Excluindo usuário:', userId);
-      
+
       const { error } = await supabase.functions.invoke('admin-delete-user', {
         body: { userId }
       });
@@ -226,37 +231,62 @@ const Admin = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Status Email</TableHead>
                   <TableHead>Função</TableHead>
                   <TableHead>Data de Cadastro</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Último Login</TableHead>
+                  <TableHead>Status Aprov.</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.full_name}</TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' ? 'Administrador' : 'Cliente'}
+                      <div className="flex flex-col">
+                        <span className="font-medium">{user.profile?.full_name || 'Sem nome'}</span>
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.email_confirmed_at ? 'outline' : 'secondary'}>
+                        {user.email_confirmed_at ? (
+                          <span className="flex items-center text-green-600 gap-1">
+                            <Check className="h-3 w-3" /> Verificado
+                          </span>
+                        ) : (
+                          <span className="text-yellow-600">Pendente</span>
+                        )}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.profile?.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.profile?.role === 'admin' ? 'Admin' : 'Cliente'}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       {new Date(user.created_at).toLocaleDateString('pt-BR')}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={user.approved ? 'default' : 'destructive'}>
-                        {user.approved ? 'Aprovado' : 'Pendente'}
+                      <div className="text-xs">
+                        {user.last_sign_in_at
+                          ? new Date(user.last_sign_in_at).toLocaleString('pt-BR')
+                          : 'Nunca logou'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.profile?.approved ? 'default' : 'destructive'}>
+                        {user.profile?.approved ? 'Aprovado' : 'Pendente'}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {!user.approved ? (
+                        {!user.profile?.approved ? (
                           <>
                             <Button
                               size="sm"
-                              onClick={() => approveUser(user.user_id)}
+                              onClick={() => approveUser(user.id)}
                               className="h-8"
                             >
                               <Check className="h-4 w-4 mr-1" />
@@ -265,7 +295,7 @@ const Admin = () => {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => deleteUser(user.user_id, user.full_name)}
+                              onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
                               className="h-8"
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
@@ -277,17 +307,17 @@ const Admin = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => rejectUser(user.user_id)}
+                              onClick={() => rejectUser(user.id)}
                               className="h-8"
                             >
                               <X className="h-4 w-4 mr-1" />
                               Reprovar
                             </Button>
-                            {user.user_id !== currentUser?.id && (
+                            {user.id !== currentUser?.id && (
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => deleteUser(user.user_id, user.full_name)}
+                                onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
                                 className="h-8"
                               >
                                 <Trash2 className="h-4 w-4 mr-1" />
