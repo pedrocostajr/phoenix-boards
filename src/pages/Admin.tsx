@@ -97,33 +97,52 @@ const Admin = () => {
 
   const approveUser = async (userId: string) => {
     try {
-      console.log('🔄 Aprovando usuário:', userId);
+      console.log('🔄 Aprovando usuário (Tentativa 1 - Edge Function)...');
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ approved: true })
-        .eq('user_id', userId);
+      const { error: edgeError } = await supabase.functions.invoke('admin-approve-user', {
+        body: { userId }
+      });
 
-      if (error) {
-        console.error('❌ Erro ao aprovar usuário:', error);
-        throw error;
+      if (edgeError) {
+        console.warn('⚠️ Edge function falhou, tentando método direto:', edgeError);
+        throw new Error('Edge function falhou'); // Força pular para o catch/fallback
       }
 
-      console.log('✅ Usuário aprovado com sucesso');
+      console.log('✅ Usuário aprovado e email confirmado!');
 
       toast({
         title: "Usuário aprovado!",
-        description: "O usuário foi aprovado com sucesso.",
+        description: "Conta liberada e email confirmado automaticamente.",
+        variant: "default",
       });
 
       fetchUsers();
     } catch (error: any) {
-      console.error('❌ Erro na aprovação:', error);
-      toast({
-        title: "Erro ao aprovar usuário",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.log('🔄 Fallback: Aprovando apenas via banco de dados...');
+
+      try {
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .update({ approved: true })
+          .eq('user_id', userId);
+
+        if (dbError) throw dbError;
+
+        toast({
+          title: "Aprovado (Modo Compatibilidade)",
+          description: "Usuário aprovado, mas o email PODE não ter sido confirmado automaticamente. Verifique se a Edge Function foi implantada.",
+          variant: "secondary",
+        });
+
+        fetchUsers();
+      } catch (finalError: any) {
+        console.error('❌ Erro fatal na aprovação:', finalError);
+        toast({
+          title: "Erro ao aprovar usuário",
+          description: finalError.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
