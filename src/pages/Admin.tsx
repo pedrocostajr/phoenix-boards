@@ -184,19 +184,18 @@ const Admin = () => {
     }
 
     try {
-      console.log('🔄 Excluindo usuário:', userId);
+      console.log('🔄 Excluindo usuário (Edge Function):', userId);
 
-      const { error } = await supabase.functions.invoke('admin-delete-user', {
+      const { error: edgeError } = await supabase.functions.invoke('admin-delete-user', {
         body: { userId }
       });
 
-      if (error) {
-        console.error('❌ Erro ao excluir usuário:', error);
-        throw error;
+      if (edgeError) {
+        console.warn('⚠️ Edge Function falhou, tentando excluir apenas perfil:', edgeError);
+        throw new Error('Edge function falhou'); // Força pular para o catch/fallback
       }
 
       console.log('✅ Usuário excluído com sucesso');
-
       toast({
         title: "Usuário excluído!",
         description: "O usuário foi excluído permanentemente do sistema.",
@@ -204,12 +203,31 @@ const Admin = () => {
 
       fetchUsers();
     } catch (error: any) {
-      console.error('❌ Erro na exclusão:', error);
-      toast({
-        title: "Erro ao excluir usuário",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.log('🔄 Fallback: Excluindo apenas perfil do banco de dados...');
+
+      try {
+        const { error: dbError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('user_id', userId);
+
+        if (dbError) throw dbError;
+
+        toast({
+          title: "Excluído (Modo Compatibilidade)",
+          description: "Perfil excluído. O login pode ainda existir na tabela Auth se a função falhou, mas o usuário não conseguirá acessar o sistema corretamente.",
+          variant: "secondary",
+        });
+
+        fetchUsers();
+      } catch (finalError: any) {
+        console.error('❌ Erro fatal na exclusão:', finalError);
+        toast({
+          title: "Erro ao excluir usuário",
+          description: finalError.message || "Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
