@@ -59,11 +59,37 @@ const Admin = () => {
       setUsers(data.users || []);
     } catch (error: any) {
       console.error('Error fetching users:', error);
-      toast({
-        title: "Erro ao carregar usuários",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.log('⚠️ Fallback: Fetching from profiles table directly');
+
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (profileError) {
+        toast({
+          title: "Erro ao carregar usuários",
+          description: profileError.message,
+          variant: "destructive",
+        });
+      } else {
+        // Map profiles to AdminUser structure
+        const mappedUsers: AdminUser[] = profiles.map((p: any) => ({
+          id: p.user_id,
+          email: 'Email oculto (Erro na função)',
+          email_confirmed_at: null,
+          last_sign_in_at: null,
+          created_at: p.created_at,
+          profile: p
+        }));
+        setUsers(mappedUsers);
+
+        toast({
+          title: "Modo de compatibilidade",
+          description: "Não foi possível carregar emails. Mostrando dados básicos.",
+          variant: "default",
+        });
+      }
     } finally {
       setLoading(false);
     }
