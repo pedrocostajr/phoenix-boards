@@ -49,8 +49,35 @@ const PendingApproval = () => {
 
   const checkDirectly = async () => {
     if (!user) return;
+
+    // Tenta ler o perfil
     const { data, error } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
-    setDebugInfo(JSON.stringify({ data, error }, null, 2));
+
+    let debugMsg = JSON.stringify({ data, error }, null, 2);
+
+    // Se perfil não existe ou erro, tenta auto-repair
+    if (!data || error) {
+      debugMsg += "\n\n⚠️ Perfil não encontrado ou erro. Tentando auto-repair...";
+      try {
+        const { data: repairData, error: repairError } = await supabase.rpc('ensure_own_profile');
+        debugMsg += "\n🔧 Repair Result: " + JSON.stringify({ repairData, repairError }, null, 2);
+
+        // Se reparou, tenta ler de novo
+        if (!repairError) {
+          const { data: newData } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+          debugMsg += "\n✅ Novo Perfil: " + JSON.stringify(newData, null, 2);
+          if (newData?.approved) {
+            window.location.reload();
+            return;
+          }
+        }
+      } catch (e) {
+        debugMsg += "\n❌ Repair Failed: " + String(e);
+      }
+    }
+
+    setDebugInfo(debugMsg);
+
     if (data?.approved) {
       window.location.reload();
     }
