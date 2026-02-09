@@ -1,16 +1,37 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Zap, Clock, LogOut, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const PendingApproval = () => {
-  const { user, signOut, refreshApprovalStatus } = useAuth();
+  const { user, signOut, refreshApprovalStatus, approved } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (approved) {
+      toast({
+        title: "Conta Aprovada!",
+        description: "Redirecionando para o painel...",
+        variant: "default",
+      });
+      // Pequeno delay para garantir que o toast apareça
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1000);
+    }
+  }, [approved, navigate, toast]);
 
   const handleCheckApproval = async () => {
     try {
       await refreshApprovalStatus();
+
+      // A navegação acontecerá automaticamente pelo useEffect se 'approved' mudar para true
+      // Mas podemos forçar uma verificação visual também
       toast({
         title: "Status verificado",
         description: "Status de aprovação atualizado.",
@@ -21,6 +42,17 @@ const PendingApproval = () => {
         description: "Tente novamente em alguns segundos.",
         variant: "destructive",
       });
+    }
+  };
+
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  const checkDirectly = async () => {
+    if (!user) return;
+    const { data, error } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+    setDebugInfo(JSON.stringify({ data, error }, null, 2));
+    if (data?.approved) {
+      window.location.reload();
     }
   };
 
@@ -44,23 +76,42 @@ const PendingApproval = () => {
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">
               <p><strong>Email:</strong> {user?.email}</p>
+              <p className="text-xs text-muted-foreground mt-1">ID: {user?.id}</p>
               <p className="mt-2">
-                Aguarde a aprovação do administrador para acessar o sistema. 
-                Você será notificado quando sua conta for aprovada.
+                Aguarde a aprovação do administrador.
               </p>
             </div>
+
+            {/* DEBUG AREA */}
+            <div className="bg-slate-950 p-3 rounded text-xs text-left text-green-400 font-mono overflow-auto max-h-48 border border-green-900 mt-4 mb-4">
+              <p className="font-bold border-b border-green-900 mb-2 pb-1">AREA DE DEBUG (Envie print se persistir)</p>
+              <p>Auth Loaded: {String(!!user)}</p>
+              <p>App Approved State: {String(approved)}</p>
+              <p>User ID: {user?.id}</p>
+              <p>Email: {user?.email}</p>
+              <br />
+              {debugInfo ? (
+                <>
+                  <p className="font-bold">Resultado da Verificação Direta:</p>
+                  <pre>{debugInfo}</pre>
+                </>
+              ) : (
+                <p className="text-gray-500">Clique em "Verificar Status" para carregar dados do banco...</p>
+              )}
+            </div>
+
             <div className="space-y-2">
-              <Button onClick={handleCheckApproval} className="w-full">
+              <Button onClick={() => { handleCheckApproval(); checkDirectly(); }} className="w-full">
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Verificar Status de Aprovação
+                Verificar Status (Com Debug)
               </Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 onClick={async () => {
                   console.log('🔄 DEBUG: Forçando logout e limpeza de estado');
                   await signOut();
-                  window.location.reload();
-                }} 
+                  window.location.href = '/';
+                }}
                 className="w-full"
               >
                 <LogOut className="h-4 w-4 mr-2" />
