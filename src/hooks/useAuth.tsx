@@ -12,6 +12,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshApprovalStatus: () => Promise<void>;
+  ensureProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,41 +24,93 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [approved, setApproved] = useState(false);
   const { toast } = useToast();
 
+  const ensureProfileInternal = async (userId: string) => {
+    try {
+      console.log('🔧 Executando Auto-Repair de Perfil via RPC...');
+      const { data, error } = await supabase.rpc('ensure_own_profile');
+      console.log('🔧 Resultado:', { data, error });
+
+      if (error) throw error;
+      return true;
+    } catch (e: any) {
+      console.error('❌ Falha no Auto-Repair:', e);
+      // Fallback: Tenta insert direto se RPC falhar
+      try {
+        console.log('🔄 Tentando insert direto como fallback...');
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({ user_id: userId, full_name: 'Usuário (Recuperado)', role: 'client', approved: false })
+          .select()
+          .single();
+
+        if (insertError && insertError.code !== '23505') { // Ignora erro de duplicidade
+          throw insertError;
+        }
+        return true;
+      } catch (finalErr) {
+        console.error('❌ Falha final no repair:', finalErr);
+        return false;
+      }
+    }
+  };
+
   useEffect(() => {
     let profileSubscription: any = null;
 
-    const checkApprovalStatus = async (session: any) => {
-      if (!session?.user) {
-        return false;
-      }
+    const checkApprovalStatus = async (session: any, retries = 1): Promise<boolean> => {
+      if (!session?.user) return false;
 
       try {
-        // Reduced timeout to 5s to avoid long blocking
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout na verificação de aprovação')), 5000);
-        });
+        console.log(`🔍 Verificando status de aprovação para: ${session.user.id} (Email: ${session.user.email})`);
 
-        const queryPromise = supabase
+        // 1. Tenta buscar o perfil
+        const { data: profile, error } = await supabase
           .from('profiles')
-          .select('approved')
+          .select('approved, role')
           .eq('user_id', session.user.id)
           .maybeSingle();
 
-        const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-
         if (error) {
           console.error('❌ Erro na query de aprovação:', error);
+          if (retries > 0) {
+            console.log(`⚠️ Tentando novamente em 1s... (${retries} retries left)`);
+            await new Promise(r => setTimeout(r, 1000));
+            return checkApprovalStatus(session, retries - 1);
+          }
           return false;
         }
 
-        return profile?.approved || false;
-      } catch (error) {
-        console.error('❌ Erro ao verificar aprovação (possivelmente timeout):', error);
-        // Fallback for admin
-        if (session.user.email === 'contato@leadsign.com.br') {
-          return true;
+        // 2. Se perfil não existe, tenta criar automaticamente
+        if (!profile) {
+          console.log('⚠️ Perfil não encontrado. Tentando criar automaticamente...');
+          await ensureProfileInternal(session.user.id);
+          // Tenta buscar de novo após criar
+          const { data: newProfile } = await supabase
+            .from('profiles')
+            .select('approved')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          return newProfile?.approved || false;
         }
+
+        console.log(`✅ Status de aprovação obtido: ${profile.approved}`);
+        return profile.approved || false;
+
+      } catch (error) {
+        console.error('❌ Erro inesperado ao verificar aprovação:', error);
+        // Fallback for known admin
+        if (session.user.email === 'contato@leadsign.com.br') return true;
         return false;
+      }
+    };
+
+    const ensureProfileInternal = async (userId: string) => {
+      try {
+        const { data, error } = await supabase.rpc('ensure_own_profile');
+        console.log('🔧 Resultado do Auto-Repair de Perfil:', { data, error });
+      } catch (e) {
+        console.error('❌ Falha ao executar ensure_own_profile:', e);
       }
     };
 
@@ -229,9 +282,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       loading,
       approved,
       signUp,
-      signIn,
       signOut,
       refreshApprovalStatus,
+      ensureProfile: async () => { if (user) await ensureProfileInternal(user.id); },
     }}>
       {children}
     </AuthContext.Provider>

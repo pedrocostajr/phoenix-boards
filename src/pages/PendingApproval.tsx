@@ -132,6 +132,24 @@ const PendingApproval = () => {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Verificar Status (Com Debug)
               </Button>
+
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  const { error } = await supabase.rpc('ensure_own_profile');
+                  if (error) {
+                    toast({ title: "Erro no reparo", description: error.message, variant: "destructive" });
+                  } else {
+                    toast({ title: "Perfil reparado", description: "Tente verificar o status agora." });
+                    checkDirectly();
+                  }
+                }}
+                className="w-full bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 border border-yellow-500/50"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                Reparar Perfil (Tentativa Manual)
+              </Button>
+
               <Button
                 variant="destructive"
                 onClick={async () => {
@@ -143,10 +161,6 @@ const PendingApproval = () => {
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Sair e Recarregar
-              </Button>
-              <Button variant="outline" onClick={signOut} className="w-full">
-                <LogOut className="h-4 w-4 mr-2" />
-                Apenas Sair
               </Button>
             </div>
           </CardContent>
