@@ -132,6 +132,16 @@ const Auth = () => {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Entrando...' : 'Entrar'}
                 </Button>
+                {isLoading && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={() => setIsLoading(false)}
+                  >
+                    Cancelar / Tentar Novamente
+                  </Button>
+                )}
                 <div className="text-center">
                   <Button
                     type="button"

@@ -225,7 +225,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Create a timeout promise
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Timeout: Login demorou muito. Verifique sua conexão.')), 15000);
+        setTimeout(() => reject(new Error('Tempo limite excedido (10s). Verifique sua conexão e tente novamente.')), 10000);
       });
 
       // Race against the actual login call
