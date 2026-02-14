@@ -28,8 +28,30 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await signIn(email, password);
-    setIsLoading(false);
+
+    try {
+      // Cria um timeout de 10 segundos para evitar loading infinito
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tempo limite excedido. Tente recarregar a página.')), 10000)
+      );
+
+      // Executa o signIn com timeout
+      await Promise.race([
+        signIn(email, password),
+        timeoutPromise
+      ]);
+
+      // O redirecionamento acontece via useEffect se o login for bem sucedido
+    } catch (error: any) {
+      toast({
+        title: "Erro no login",
+        description: error.message || "Ocorreu um erro inesperado.",
+        variant: "destructive",
+      });
+    } finally {
+      // Sempre remove o loading, mesmo se der erro ou timeout
+      setIsLoading(false);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -92,7 +114,7 @@ const Auth = () => {
               <TabsTrigger value="signin">Entrar</TabsTrigger>
               <TabsTrigger value="signup">Cadastrar</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
@@ -121,9 +143,9 @@ const Auth = () => {
                   {isLoading ? 'Entrando...' : 'Entrar'}
                 </Button>
                 <div className="text-center">
-                  <Button 
-                    type="button" 
-                    variant="link" 
+                  <Button
+                    type="button"
+                    variant="link"
                     onClick={handleForgotPassword}
                     disabled={isLoading}
                     className="text-sm"
@@ -133,7 +155,7 @@ const Auth = () => {
                 </div>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
