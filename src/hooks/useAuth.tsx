@@ -222,15 +222,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       console.log('🔵 Chamando supabase.auth.signInWithPassword...');
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Login demorou muito. Verifique sua conexão.')), 15000);
       });
+
+      // Race against the actual login call
+      const { data, error } = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email,
+          password,
+        }),
+        timeoutPromise
+      ]) as any;
 
       console.log('🔵 Retorno do Supabase:', { data, error });
 
       if (error) {
-        console.error('🔴 Erro retornado pelo Supabase:', error);
+        console.error('🔴 Erro retornado pelo Supabase (ou Timeout):', error);
         toast({
           title: "Erro no login",
           description: error.message,

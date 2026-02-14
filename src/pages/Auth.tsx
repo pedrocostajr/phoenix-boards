@@ -29,15 +29,19 @@ const Auth = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Uses the robust signIn from useAuth which now has try/catch/logs
-    const { error } = await signIn(email, password);
+    try {
+      // Uses the robust signIn from useAuth which now has try/catch/logs
+      const { error } = await signIn(email, password);
 
-    if (error) {
-      // Toast is already handled in useAuth
-      console.error("Login failed:", error);
+      if (error) {
+        // Toast is already handled in useAuth
+        console.error("Login failed:", error);
+      }
+    } catch (e) {
+      console.error("Critical error in handleSignIn:", e);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
