@@ -28,28 +28,29 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    console.log('🔵 Iniciando login na página Auth...');
 
     try {
-      // Cria um timeout de 10 segundos para evitar loading infinito
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Tempo limite excedido. Tente recarregar a página.')), 10000)
-      );
+      // Simplificando: Chamada direta sem timeout complexo para isolar o erro "c is not a function"
+      // O useAuth.tsx agora tem logs detalhados e try/catch interno
+      const result = await signIn(email, password);
+      console.log('🔵 Resultado do signIn (Auth.tsx):', result);
 
-      // Executa o signIn com timeout
-      await Promise.race([
-        signIn(email, password),
-        timeoutPromise
-      ]);
+      if (result.error) {
+        // Se o signIn retornar erro tratado
+        throw result.error;
+      }
 
-      // O redirecionamento acontece via useEffect se o login for bem sucedido
+      // Sucesso: Redirecionamento via useEffect
     } catch (error: any) {
+      console.error('🔴 Erro capturado no handleSignIn (Auth.tsx):', error);
       toast({
         title: "Erro no login",
-        description: error.message || "Ocorreu um erro inesperado.",
+        description: error.message || "Erro desconhecido. Verifique o console.",
         variant: "destructive",
       });
     } finally {
-      // Sempre remove o loading, mesmo se der erro ou timeout
+      // Sempre remove o loading
       setIsLoading(false);
     }
   };

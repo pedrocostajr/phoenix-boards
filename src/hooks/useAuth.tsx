@@ -216,20 +216,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    console.log('🔵 useAuth: Tendo login para:', email);
+    try {
+      if (!supabase || !supabase.auth) {
+        console.error('🔴 Supabase client não inicializado corretamente');
+        throw new Error('Erro interno: Cliente Supabase inválido');
+      }
 
-    if (error) {
+      console.log('🔵 Chamando supabase.auth.signInWithPassword...');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      console.log('🔵 Retorno do Supabase:', { data, error });
+
+      if (error) {
+        console.error('🔴 Erro retornado pelo Supabase:', error);
+        toast({
+          title: "Erro no login",
+          description: error.message,
+          variant: "destructive",
+        });
+        return { error };
+      }
+
+      return { error: null };
+    } catch (err: any) {
+      console.error('🔴 Exceção em signIn:', err);
       toast({
-        title: "Erro no login",
-        description: error.message,
+        title: "Erro de Exceção",
+        description: err.message || "Ocorreu um erro crítico ao tentar logar.",
         variant: "destructive",
       });
+      return { error: err };
     }
-
-    return { error };
   };
 
   const signOut = async () => {
