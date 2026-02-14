@@ -274,186 +274,188 @@ const Admin = () => {
           });
         }
       }
-    };
-
-    if (loading) {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-        </div>
-      );
     }
+  }
+};
 
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
-        {/* Header */}
-        <header className="bg-card border-b shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-2">
-                <Zap className="h-8 w-8 text-primary" />
-                <h1 className="text-xl font-bold">Phoenix Board - Administração</h1>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Admin: {currentUser?.email}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Configurações
-                </Button>
-                <Button variant="outline" size="sm" onClick={signOut}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sair
-                </Button>
-              </div>
-            </div>
+if (loading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+    </div>
+  );
+}
+
+return (
+  <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
+    {/* Header */}
+    <header className="bg-card border-b shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center gap-2">
+            <Zap className="h-8 w-8 text-primary" />
+            <h1 className="text-xl font-bold">Phoenix Board - Administração</h1>
           </div>
-        </header>
-
-        {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold tracking-tight">Gerenciamento de Usuários</h2>
-            <p className="text-muted-foreground mt-1">
-              Aprove ou rejeite usuários cadastrados no sistema
-            </p>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              Admin: {currentUser?.email}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+              <Users className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Configurações
+            </Button>
+            <Button variant="outline" size="sm" onClick={signOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
+            </Button>
           </div>
-
-          {/* Add User Form */}
-          <AddUserForm onUserAdded={fetchUsers} />
-
-          {/* Users Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lista de Usuários</CardTitle>
-              <CardDescription>
-                Usuários cadastrados no sistema. Aprove ou reprove conforme necessário.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Status Email</TableHead>
-                    <TableHead>Função</TableHead>
-                    <TableHead>Data de Cadastro</TableHead>
-                    <TableHead>Último Login</TableHead>
-                    <TableHead>Status Aprov.</TableHead>
-                    <TableHead>Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{user.profile?.full_name || 'Sem nome'}</span>
-                          <span className="text-xs text-muted-foreground">{user.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.email_confirmed_at ? 'outline' : 'secondary'}>
-                          {user.email_confirmed_at ? (
-                            <span className="flex items-center text-green-600 gap-1">
-                              <Check className="h-3 w-3" /> Verificado
-                            </span>
-                          ) : (
-                            <span className="text-yellow-600">Pendente</span>
-                          )}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.profile?.role === 'admin' ? 'default' : 'secondary'}>
-                          {user.profile?.role === 'admin' ? 'Admin' : 'Cliente'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs">
-                          {user.last_sign_in_at
-                            ? new Date(user.last_sign_in_at).toLocaleString('pt-BR')
-                            : 'Nunca logou'}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.profile?.approved ? 'default' : 'destructive'}>
-                          {user.profile?.approved ? 'Aprovado' : 'Pendente'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          {!user.profile?.approved ? (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => approveUser(user.id)}
-                                className="h-8"
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Aprovar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
-                                className="h-8"
-                              >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Excluir
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => rejectUser(user.id)}
-                                className="h-8"
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Reprovar
-                              </Button>
-                              {user.id !== currentUser?.id && (
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
-                                  className="h-8"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" />
-                                  Excluir
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {users.length === 0 && (
-                <div className="text-center py-8">
-                  <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Nenhum usuário encontrado</h3>
-                  <p className="text-muted-foreground">
-                    Ainda não há usuários cadastrados no sistema.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </main>
+        </div>
       </div>
-    );
+    </header>
+
+    {/* Main Content */}
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold tracking-tight">Gerenciamento de Usuários</h2>
+        <p className="text-muted-foreground mt-1">
+          Aprove ou rejeite usuários cadastrados no sistema
+        </p>
+      </div>
+
+      {/* Add User Form */}
+      <AddUserForm onUserAdded={fetchUsers} />
+
+      {/* Users Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Usuários</CardTitle>
+          <CardDescription>
+            Usuários cadastrados no sistema. Aprove ou reprove conforme necessário.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Usuário</TableHead>
+                <TableHead>Status Email</TableHead>
+                <TableHead>Função</TableHead>
+                <TableHead>Data de Cadastro</TableHead>
+                <TableHead>Último Login</TableHead>
+                <TableHead>Status Aprov.</TableHead>
+                <TableHead>Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{user.profile?.full_name || 'Sem nome'}</span>
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.email_confirmed_at ? 'outline' : 'secondary'}>
+                      {user.email_confirmed_at ? (
+                        <span className="flex items-center text-green-600 gap-1">
+                          <Check className="h-3 w-3" /> Verificado
+                        </span>
+                      ) : (
+                        <span className="text-yellow-600">Pendente</span>
+                      )}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.profile?.role === 'admin' ? 'default' : 'secondary'}>
+                      {user.profile?.role === 'admin' ? 'Admin' : 'Cliente'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs">
+                      {user.last_sign_in_at
+                        ? new Date(user.last_sign_in_at).toLocaleString('pt-BR')
+                        : 'Nunca logou'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.profile?.approved ? 'default' : 'destructive'}>
+                      {user.profile?.approved ? 'Aprovado' : 'Pendente'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      {!user.profile?.approved ? (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => approveUser(user.id)}
+                            className="h-8"
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Aprovar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
+                            className="h-8"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Excluir
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => rejectUser(user.id)}
+                            className="h-8"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Reprovar
+                          </Button>
+                          {user.id !== currentUser?.id && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteUser(user.id, user.profile?.full_name || user.email)}
+                              className="h-8"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Excluir
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {users.length === 0 && (
+            <div className="text-center py-8">
+              <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum usuário encontrado</h3>
+              <p className="text-muted-foreground">
+                Ainda não há usuários cadastrados no sistema.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </main>
+  </div>
+);
   };
 
-  export default Admin;
+export default Admin;
