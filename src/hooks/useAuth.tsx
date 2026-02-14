@@ -13,6 +13,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshApprovalStatus: () => Promise<void>;
   ensureProfile: () => Promise<void>;
+  updatePassword: (password: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -303,6 +304,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       signOut,
       refreshApprovalStatus,
       ensureProfile: async () => { if (user) await ensureProfileInternal(user.id); },
+      updatePassword: async (password: string) => {
+        try {
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) throw error;
+          toast({ title: "Senha atualizada", description: "Sua senha foi alterada com sucesso." });
+          return { error: null };
+        } catch (error: any) {
+          console.error('Erro ao atualizar senha:', error);
+          toast({ title: "Erro", description: error.message, variant: "destructive" });
+          return { error };
+        }
+      },
     }}>
       {children}
     </AuthContext.Provider>

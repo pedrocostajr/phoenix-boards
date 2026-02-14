@@ -41,6 +41,30 @@ const Dashboard = () => {
   const [renamingProjectId, setRenamingProjectId] = useState('');
   const [renamingProjectName, setRenamingProjectName] = useState('');
 
+  // Settings & Password Change State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const { updatePassword } = useAuth(); // Destructure updatePassword
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmNewPassword) {
+      toast({ title: "Erro", description: "As senhas não coincidem", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ title: "Erro", description: "A senha deve ter no mínimo 6 caracteres", variant: "destructive" });
+      return;
+    }
+    setChangingPassword(true);
+    await updatePassword(newPassword);
+    setChangingPassword(false);
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setIsSettingsOpen(false);
+  };
+
   // Use React Query for caching projects
   const { data: projects = [], isLoading: loading, refetch: fetchProjects } = useQuery({
     queryKey: ['projects', user?.id],
@@ -254,7 +278,7 @@ const Dashboard = () => {
                   Administração
                 </Button>
               )}
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Configurações
               </Button>
@@ -465,6 +489,49 @@ const Dashboard = () => {
               <Button onClick={updateProject} className="w-full h-12 bg-primary font-bold text-lg rounded-xl shadow-xl shadow-primary/10 transition-all active:scale-95">
                 Salvar Alterações
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="glass-morphism border-white/20">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight">Configurações</DialogTitle>
+              <DialogDescription className="text-foreground/60">
+                Gerencie suas preferências e segurança
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Alterar Senha</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">Nova Senha</Label>
+                  <Input
+                    id="newPassword"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmNewPassword">Confirmar Nova Senha</Label>
+                  <Input
+                    id="confirmNewPassword"
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                  className="w-full"
+                >
+                  {changingPassword ? 'Alterando...' : 'Atualizar Senha'}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
