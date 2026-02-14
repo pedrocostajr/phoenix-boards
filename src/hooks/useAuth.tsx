@@ -57,11 +57,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     let profileSubscription: any = null;
 
-    const checkApprovalStatus = async (session: any, retries = 1): Promise<boolean> => {
+    const checkApprovalStatus = async (session: any): Promise<boolean> => {
       if (!session?.user) return false;
 
       try {
-        console.log(`🔍 Verificando status de aprovação para: ${session.user.id} (Email: ${session.user.email})`);
+        console.log(`🔍 Verificando status de aprovação para: ${session.user.id}`);
 
         // 1. Tenta buscar o perfil
         const { data: profile, error } = await supabase
@@ -71,12 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (error) {
-          console.error('❌ Erro na query de aprovação:', error);
-          if (retries > 0) {
-            console.log(`⚠️ Tentando novamente em 1s... (${retries} retries left)`);
-            await new Promise(r => setTimeout(r, 1000));
-            return checkApprovalStatus(session, retries - 1);
-          }
+          console.error('❌ Erro ao buscar perfil (sem retry):', error);
+          // Retorna false em caso de erro. O setupRealtimeSubscription poderá atualizar depois.
           return false;
         }
 
@@ -84,7 +80,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!profile) {
           console.log('⚠️ Perfil não encontrado. Tentando criar automaticamente...');
           await ensureProfileInternal(session.user.id);
-          // Tenta buscar de novo após criar
+
+          // Busca novamente após criar
           const { data: newProfile } = await supabase
             .from('profiles')
             .select('approved')
@@ -94,12 +91,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return newProfile?.approved || false;
         }
 
-        console.log(`✅ Status de aprovação obtido: ${profile.approved}`);
+        console.log(`✅ Status de aprovação: ${profile.approved}`);
         return profile.approved || false;
 
       } catch (error) {
-        console.error('❌ Erro inesperado ao verificar aprovação:', error);
-        // Fallback for known admin
+        console.error('❌ Erro inesperado em checkApprovalStatus:', error);
+        // Fallback for known admin (safety net)
         if (session.user.email === 'contato@leadsign.com.br') return true;
         return false;
       }
