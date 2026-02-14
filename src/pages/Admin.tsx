@@ -10,6 +10,7 @@ import { Zap, LogOut, Settings, Check, X, Users, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AddUserForm } from '@/components/AddUserForm';
 
+// Admin Page - User Management
 interface AdminUser {
   id: string; // auth.users id
   email: string;
