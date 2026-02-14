@@ -62,30 +62,39 @@ const Dashboard = () => {
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (!authLoading && !user) navigate('/auth');
-    if (!authLoading && user && !approved && user.email !== 'contato@leadsign.com.br') navigate('/pending-approval');
-    if (!authLoading && user) fetchUserProfile();
-  }, [user, approved, authLoading, navigate]);
-
-  const fetchUserProfile = async () => {
-    if (!user?.id) return;
-    try {
-      const { data: profile } = await supabase
+  // Fetch user profile for TrialBanner
+  const { data: userProfile } = useQuery({
+    queryKey: ['userProfile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
         .from('profiles')
         .select('created_at')
         .eq('user_id', user.id)
-        .single(); // Removed maybeSingle to match original logic or keep simple. Switched to single but ignoring error if not found? Original threw error.
-      // Original: if (error) throw error; 
-      // Keeping simple for now. 
-      setUserProfile(profile);
-    } catch (error) {
-      console.error('Erro profile:', error);
+        .single();
+
+      if (error) {
+        console.error('Erro profile:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 60, // Cache for 1 hour (profile creation date doesn't change)
+  });
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        navigate('/auth');
+      } else if (!approved && user.email !== 'contato@leadsign.com.br') {
+        navigate('/pending-approval');
+      }
+      // fetchUserProfile removed - handled by useQuery
     }
-  };
+  }, [user, approved, authLoading, navigate]);
 
 
 
