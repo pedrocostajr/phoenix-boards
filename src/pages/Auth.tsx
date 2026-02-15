@@ -200,6 +200,11 @@ const Auth = () => {
               </form>
             </TabsContent>
           </Tabs>
+          <div className="mt-4 text-center">
+            <a href="/debug-auth" className="text-xs text-muted-foreground hover:text-primary">
+              Problemas com login? Diagnóstico
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
