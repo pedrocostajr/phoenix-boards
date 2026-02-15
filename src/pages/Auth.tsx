@@ -27,6 +27,8 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🟢 Botão de entrar clicado");
+    toast({ title: "Processando...", description: "Iniciando tentativa de login..." });
     setIsLoading(true);
 
     try {
