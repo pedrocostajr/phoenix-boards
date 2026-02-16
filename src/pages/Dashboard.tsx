@@ -109,6 +109,8 @@ const Dashboard = () => {
 
   const { toast } = useToast();
 
+  /* 
+  AUTO-REDIRECT DISABLED FOR DEBUGGING
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
@@ -116,9 +118,40 @@ const Dashboard = () => {
       } else if (!approved && user.email !== 'contato@leadsign.com.br') {
         navigate('/pending-approval');
       }
-      // fetchUserProfile removed - handled by useQuery
     }
   }, [user, approved, authLoading, navigate]);
+  */
+
+  // DEBUGGING STATE UI
+  if (!authLoading && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-destructive/10 p-4">
+        <Card className="w-full max-w-md border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <LogOut className="h-5 w-5" />
+              Acesso Negado (Debug Mode)
+            </CardTitle>
+            <CardDescription>
+              O Dashboard carregou, mas não detectou seu usuário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-slate-950 p-4 rounded text-xs font-mono text-white">
+              <p>Status: Carregamento Finalizado</p>
+              <p>User Object: NULL</p>
+              <p>Approved: {String(approved)}</p>
+              <p>Sessão Supabase: {supabase.auth.getSession ? 'Disponível' : 'Indisponível'}</p>
+            </div>
+            <div className="grid gap-2">
+              <Button onClick={() => navigate('/auth')}>Voltar para Login</Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>Recarregar Página</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
 
 
