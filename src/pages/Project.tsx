@@ -176,25 +176,30 @@ const Project = () => {
 
 
 
-      // Fetch potential assignees (members)
-      // For now, let's just fetch all profiles as we don't have a direct atomic "project_members" join easy here without knowing exact policy
-      // Ideally: select * from profiles where user_id in (select user_id from project_members where project_id = ...)
-      // But let's simplified: fetch all profiles for now or assume we can fetch them.
-      // Better: Fetch project members if the table exists
+      // Fetch potential assignees (members + owner)
       const { data: members, error: membersError } = await supabase
         .from('project_members')
         .select('user_id, role')
         .eq('project_id', projectId);
 
+      let allUserIds = new Set<string>();
+
+      // Add owner
+      if (projectResponse.data.created_by) {
+        allUserIds.add(projectResponse.data.created_by);
+      }
+
+      // Add members
       if (!membersError && members) {
-        const userIds = members.map(m => m.user_id);
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('*')
-            .in('user_id', userIds);
-          setProjectMembers(profiles || []);
-        }
+        members.forEach(m => allUserIds.add(m.user_id));
+      }
+
+      if (allUserIds.size > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', Array.from(allUserIds));
+        setProjectMembers(profiles || []);
       }
 
       if (boardsResponse.data && boardsResponse.data.length > 0) {
