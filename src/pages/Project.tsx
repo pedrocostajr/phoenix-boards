@@ -70,6 +70,7 @@ interface Profile {
   approved: boolean;
   full_name?: string; // Optional if not always present
   email?: string; // Optional
+  avatar_url?: string | null;
 }
 
 interface ChecklistItem {
