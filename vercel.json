@@ -3,7 +3,15 @@
     "framework": "vite",
     "rewrites": [
         {
-            "source": "/((?!assets/|.*\\..*|debug_login\\.html).*)",
+            "source": "/debug_login.html",
+            "destination": "/debug_login.html"
+        },
+        {
+            "source": "/assets/(.*)",
+            "destination": "/assets/$1"
+        },
+        {
+            "source": "/(.*)",
             "destination": "/index.html"
         }
     ]
