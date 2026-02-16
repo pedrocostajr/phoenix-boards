@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,27 +26,49 @@ const Auth = () => {
     }
   }, [user, navigate]);
 
+  // Create a local client for authentication to bypass potential context/singleton issues
+  const localSupabase = createClient(
+    "https://neaxlhqzgaylvhdttqoe.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lYXhsaHF6Z2F5bHZoZHR0cW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MjczOTQsImV4cCI6MjA4NTMwMzM5NH0.cUJIyG7bCoUxl1r1dU69pKFoiumEA9TZBiMyKWDQdAU"
+  );
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("🟢 Botão de entrar clicado");
-    toast({ title: "Processando...", description: "Iniciando tentativa de login..." });
+    console.log("🟢 Botão de entrar clicado (Local Client Strategy)");
+    toast({ title: "Conectando...", description: "Iniciando login seguro..." });
     setIsLoading(true);
 
     try {
-      // Uses the robust signIn from useAuth which now has try/catch/logs
-      const { error } = await signIn(email, password);
+      // Use local client to avoid singleton state issues
+      const { data, error } = await localSupabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) {
-        // Toast is already handled in useAuth
-        console.error("Login failed:", error);
+        console.error("🔴 Login failed:", error);
+        toast({
+          title: "Erro no Login",
+          description: error.message,
+          variant: "destructive"
+        });
+        setIsLoading(false);
       } else {
-        // FIX: Force navigation on success instead of waiting for useEffect
-        console.log("✅ Login successful, navigating to dashboard...");
-        navigate('/dashboard');
+        console.log("✅ Login successful (Local Client), forcing hard redirect...");
+        toast({ title: "Sucesso!", description: "Entrando no sistema..." });
+
+        // Force hard reload to ensure fresh state for the main app
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+        }, 500);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Critical error in handleSignIn:", e);
-    } finally {
+      toast({
+        title: "Erro Crítico",
+        description: e.message || "Falha desconhecida",
+        variant: "destructive"
+      });
       setIsLoading(false);
     }
   };
@@ -53,7 +76,18 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await signUp(email, password, fullName);
+    // Use local client for consistency
+    const { error } = await localSupabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName } }
+    });
+
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Verifique seu email", description: "Link de confirmação enviado." });
+    }
     setIsLoading(false);
   };
 
