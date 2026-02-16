@@ -38,6 +38,10 @@ const Auth = () => {
       if (error) {
         // Toast is already handled in useAuth
         console.error("Login failed:", error);
+      } else {
+        // FIX: Force navigation on success instead of waiting for useEffect
+        console.log("✅ Login successful, navigating to dashboard...");
+        navigate('/dashboard');
       }
     } catch (e) {
       console.error("Critical error in handleSignIn:", e);
