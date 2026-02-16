@@ -26,21 +26,15 @@ const Auth = () => {
     }
   }, [user, navigate]);
 
-  // Create a local client for authentication to bypass potential context/singleton issues
-  const localSupabase = createClient(
-    "https://neaxlhqzgaylvhdttqoe.supabase.co",
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lYXhsaHF6Z2F5bHZoZHR0cW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MjczOTQsImV4cCI6MjA4NTMwMzM5NH0.cUJIyG7bCoUxl1r1dU69pKFoiumEA9TZBiMyKWDQdAU"
-  );
-
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("🟢 Botão de entrar clicado (Local Client Strategy)");
+    console.log("🟢 Botão de entrar clicado");
     toast({ title: "Conectando...", description: "Iniciando login seguro..." });
     setIsLoading(true);
 
     try {
-      // Use local client to avoid singleton state issues
-      const { data, error } = await localSupabase.auth.signInWithPassword({
+      // Use shared client to ensure session persistence across the app
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -54,12 +48,13 @@ const Auth = () => {
         });
         setIsLoading(false);
       } else {
-        console.log("✅ Login successful (Local Client), forcing hard redirect...");
+        console.log("✅ Login successful, redirecting...");
         toast({ title: "Sucesso!", description: "Entrando no sistema..." });
 
-        // Force hard reload to ensure fresh state for the main app
+        // Let the useAuth hook or standard routing handle the redirect normally
+        // But to be safe given previous history:
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          navigate('/dashboard');
         }, 500);
       }
     } catch (e: any) {
@@ -76,12 +71,13 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Use local client for consistency
-    const { error } = await localSupabase.auth.signUp({
+    // Use shared client
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } }
     });
+
 
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
