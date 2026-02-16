@@ -119,6 +119,49 @@ const DebugAuth = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Card>
                             <CardHeader>
+                                <CardTitle className="text-base">Teste de Login Direto (Bypass HooK)</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <input
+                                        id="debug-email"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Email"
+                                    />
+                                    <input
+                                        id="debug-password"
+                                        type="password"
+                                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Senha"
+                                    />
+                                    <Button
+                                        onClick={async () => {
+                                            const email = (document.getElementById('debug-email') as HTMLInputElement).value;
+                                            const password = (document.getElementById('debug-password') as HTMLInputElement).value;
+                                            addLog(`🔐 Tentando login direto para: ${email}...`);
+
+                                            try {
+                                                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                                                if (error) {
+                                                    addLog(`❌ Falha no login: ${error.message} (Status: ${error.status})`);
+                                                } else {
+                                                    addLog(`✅ Login Sucesso! User ID: ${data.user.id}`);
+                                                    setSessionInfo(data.session);
+                                                }
+                                            } catch (e: any) {
+                                                addLog(`🔥 Exceção no login: ${e.message}`);
+                                            }
+                                        }}
+                                        className="w-full"
+                                    >
+                                        Testar Login Direto
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
                                 <CardTitle className="text-base">Status da Sessão</CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -172,3 +215,5 @@ const DebugAuth = () => {
 };
 
 export default DebugAuth;
+
+
