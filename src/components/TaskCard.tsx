@@ -353,9 +353,9 @@ export const TaskCard = ({
             <div className="flex items-center gap-0.5 -mr-1">
               {task.assigned_to && (
                 <Avatar className="h-6 w-6 border-2 border-background">
-                  <AvatarImage src={`https://avatar.vercel.sh/${task.assigned_to}`} />
+                  <AvatarImage src={projectMembers.find(m => m.user_id === task.assigned_to)?.profiles?.avatar_url || `https://avatar.vercel.sh/${task.assigned_to}`} />
                   <AvatarFallback className="text-[9px]">
-                    {projectMembers.find(m => m.user_id === task.assigned_to)?.full_name?.substring(0, 2).toUpperCase() || '??'}
+                    {projectMembers.find(m => m.user_id === task.assigned_to)?.profiles?.full_name?.substring(0, 2).toUpperCase() || '??'}
                   </AvatarFallback>
                 </Avatar>
               )}
@@ -537,9 +537,10 @@ export const TaskCard = ({
                           <SelectItem key={member.user_id} value={member.user_id}>
                             <div className="flex items-center gap-2">
                               <Avatar className="h-5 w-5">
-                                <AvatarFallback className="text-[8px]">{member.full_name?.substring(0, 2) || member.email?.substring(0, 2)}</AvatarFallback>
+                                <AvatarImage src={member.profiles?.avatar_url || undefined} />
+                                <AvatarFallback className="text-[8px]">{member.profiles?.full_name?.substring(0, 2) || member.profiles?.full_name?.substring(0, 2)}</AvatarFallback>
                               </Avatar>
-                              {member.full_name || member.email}
+                              {member.profiles?.full_name}
                             </div>
                           </SelectItem>
                         ))}

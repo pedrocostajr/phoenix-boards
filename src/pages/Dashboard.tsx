@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Zap, LogOut, Settings, Users, Trash2, MoreVertical, Copy, Share2, UserPlus, X, ShieldCheck, Edit, Link, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TrialBanner } from '@/components/TrialBanner';
+import { ProfileDialog } from '@/components/ProfileDialog';
 
 interface Project {
   id: string;
@@ -93,7 +94,7 @@ const Dashboard = () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from('profiles')
-        .select('created_at')
+        .select('created_at, avatar_url')
         .eq('user_id', user.id)
         .single();
 
@@ -304,22 +305,26 @@ const Dashboard = () => {
               <h1 className="text-xl font-bold">Phoenix Board</h1>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                Olá, {user?.email}
-              </span>
+              <ProfileDialog>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    {userProfile?.avatar_url ? (
+                      <img src={userProfile.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <span className="font-bold text-primary">{user?.user_metadata?.full_name?.substring(0, 2).toUpperCase() || 'U'}</span>
+                    )}
+                  </div>
+                  <span className="hidden md:inline">{user?.user_metadata?.full_name?.split(' ')[0] || user?.email}</span>
+                  <span className="sr-only">Meu Perfil</span>
+                </Button>
+              </ProfileDialog>
               {user?.email === 'contato@leadsign.com.br' && (
                 <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
-                  <ShieldCheck className="h-4 w-4 mr-2" />
-                  Administração
+                  <ShieldCheck className="h-4 w-4" />
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setIsSettingsOpen(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
-              </Button>
-              <Button variant="outline" size="sm" onClick={signOut}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sair
+              <Button variant="ghost" size="icon" onClick={signOut}>
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
