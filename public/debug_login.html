@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Supabase Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 2rem;
+            background: #111;
+            color: #0f0;
+        }
+
+        .box {
+            border: 1px solid #333;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            background: #000;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #0f0;
+            color: #000;
+            border: none;
+            font-weight: bold;
+        }
+
+        input {
+            padding: 10px;
+            font-size: 16px;
+            background: #222;
+            border: 1px solid #444;
+            color: white;
+            display: block;
+            margin-bottom: 10px;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        #log {
+            white-space: pre-wrap;
+            color: #aaa;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🛠️ Isolado Debug: Login</h1>
+
+    <div class="box">
+        <h3>1. Configuração</h3>
+        <p>URL: <span id="url">...</span></p>
+        <p>Status: <span id="status">Verificando...</span></p>
+    </div>
+
+    <div class="box">
+        <h3>2. Teste de Login</h3>
+        <input type="email" id="email" placeholder="Email (contato@leadsign.com.br)">
+        <input type="password" id="password" placeholder="Senha">
+        <button onclick="login()">Logar com Supabase Direct</button>
+    </div>
+
+    <div class="box">
+        <h3>3. Logs</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        // CONFIGURAÇÃO DO SEU PROJETO
+        const SUPABASE_URL = "https://neaxlhqzgaylvhdttqoe.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lYXhsaHF6Z2F5bHZoZHR0cW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MjczOTQsImV4cCI6MjA4NTMwMzM5NH0.cUJIyG7bCoUxl1r1dU69pKFoiumEA9TZBiMyKWDQdAU";
+
+        const logDiv = document.getElementById('log');
+        function log(msg) {
+            logDiv.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+            console.log(msg);
+        }
+
+        let supabase;
+
+        try {
+            document.getElementById('url').innerText = SUPABASE_URL;
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            document.getElementById('status').innerText = "Cliente Iniciado ✅";
+            log("Supabase Client initialized.");
+
+            // Check session
+            supabase.auth.getSession().then(({ data, error }) => {
+                if (data?.session) {
+                    log("Sessão encontrada! User ID: " + data.session.user.id);
+                    document.getElementById('status').innerText = "LOGADO ✅";
+                } else {
+                    log("Nenhuma sessão ativa.");
+                }
+            });
+
+        } catch (e) {
+            document.getElementById('status').innerText = "ERRO AO INICIAR ❌";
+            log("Erro fatal: " + e.message);
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) return alert("Preencha email e senha");
+
+            log(`Tentando login para: ${email}...`);
+
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (error) {
+                    log("❌ ERRO DE LOGIN: " + error.message);
+                    alert("Erro: " + error.message);
+                } else {
+                    log("✅ SUCESSO! Token recebido.");
+                    log("User ID: " + data.user.id);
+                    log("Role: " + data.user.role);
+                    document.getElementById('status').innerText = "LOGADO AGORA (SUCESSO) ✅";
+                    alert("LOGIN SUCESSO! O problema é no React, não no Supabase.");
+                }
+            } catch (e) {
+                log("❌ EXCEÇÃO: " + e.message);
+            }
+        }
+    </script>
+</body>
+
+</html>
