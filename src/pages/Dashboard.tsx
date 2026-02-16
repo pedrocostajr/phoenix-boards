@@ -288,9 +288,11 @@ const Dashboard = () => {
     );
   }
 
+  /* 
   if (!approved && user?.email !== 'contato@leadsign.com.br') {
     return null;
-  }
+  } 
+  */
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/5 to-primary/5">
