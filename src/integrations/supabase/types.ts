@@ -248,145 +248,144 @@ export type Database = {
           },
         ]
       }
-    }
-    project_tags: {
-      Row: {
-        color: string
-        created_at: string
-        id: string
-        name: string
-        project_id: string
-      }
-      Insert: {
-        color?: string
-        created_at?: string
-        id?: string
-        name: string
-        project_id: string
-      }
-      Update: {
-        color?: string
-        created_at?: string
-        id?: string
-        name?: string
-        project_id?: string
-      }
-      Relationships: [
-        {
-          foreignKeyName: "project_tags_project_id_fkey"
-          columns: ["project_id"]
-          isOneToOne: false
-          referencedRelation: "projects"
-          referencedColumns: ["id"]
+      project_tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          project_id: string
         }
-      ]
-    }
-    task_tags: {
-      Row: {
-        created_at: string
-        id: string
-        tag_id: string
-        task_id: string
-      }
-      Insert: {
-        created_at?: string
-        id?: string
-        tag_id: string
-        task_id: string
-      }
-      Update: {
-        created_at?: string
-        id?: string
-        tag_id?: string
-        task_id?: string
-      }
-      Relationships: [
-        {
-          foreignKeyName: "task_tags_tag_id_fkey"
-          columns: ["tag_id"]
-          isOneToOne: false
-          referencedRelation: "project_tags"
-          referencedColumns: ["id"]
-        },
-        {
-          foreignKeyName: "task_tags_task_id_fkey"
-          columns: ["task_id"]
-          isOneToOne: false
-          referencedRelation: "tasks"
-          referencedColumns: ["id"]
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          project_id: string
         }
-      ]
-    }
-    tasks: {
-      Row: {
-        assigned_to: string | null
-        column_id: string
-        completed: boolean
-        created_at: string
-        created_by: string
-        description: string | null
-        due_date: string | null
-        id: string
-        position: number
-        priority: string | null
-        title: string
-        updated_at: string
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tags_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
       }
-      Insert: {
-        assigned_to?: string | null
-        column_id: string
-        completed?: boolean
-        created_at?: string
-        created_by: string
-        description?: string | null
-        due_date?: string | null
-        id?: string
-        position: number
-        priority?: string | null
-        title: string
-        updated_at?: string
+      task_tags: {
+        Row: {
+          created_at: string
+          id: string
+          tag_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tag_id: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tag_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "project_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_tags_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          }
+        ]
       }
-      Update: {
-        assigned_to?: string | null
-        column_id?: string
-        completed?: boolean
-        created_at?: string
-        created_by?: string
-        description?: string | null
-        due_date?: string | null
-        id?: string
-        position?: number
-        priority?: string | null
-        title?: string
-        updated_at?: string
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          column_id: string
+          completed: boolean
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          position: number
+          priority: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          column_id: string
+          completed?: boolean
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          position: number
+          priority?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          column_id?: string
+          completed?: boolean
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          position?: number
+          priority?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_column_id_fkey"
+            columns: ["column_id"]
+            isOneToOne: false
+            referencedRelation: "board_columns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
-      Relationships: [
-        {
-          foreignKeyName: "tasks_column_id_fkey"
-          columns: ["column_id"]
-          isOneToOne: false
-          referencedRelation: "board_columns"
-          referencedColumns: ["id"]
-        },
-      ]
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      check_project_access: {
+        Args: { project_uuid: string }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
     }
   }
-  Views: {
-    [_ in never]: never
-  }
-  Functions: {
-    check_project_access: {
-      Args: { project_uuid: string }
-      Returns: boolean
-    }
-  }
-  Enums: {
-    [_ in never]: never
-  }
-  CompositeTypes: {
-    [_ in never]: never
-  }
-}
 }
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">

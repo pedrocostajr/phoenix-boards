@@ -84,6 +84,7 @@ export const TaskCard = ({
   const [editingDescription, setEditingDescription] = useState(task.description || '');
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [newTaskTag, setNewTaskTag] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#6366f1'); // Default Indigo
   const { toast } = useToast();
 
   const {
@@ -172,9 +173,6 @@ export const TaskCard = ({
     }
   };
 
-  const [newTaskTag, setNewTaskTag] = useState('');
-  const [newTagColor, setNewTagColor] = useState('#6366f1'); // Default Indigo
-
   // Enable/Disable Tag Mode
   const createTag = async () => {
     if (!newTaskTag.trim()) return;
@@ -185,9 +183,9 @@ export const TaskCard = ({
         await toggleTag(existing.id);
       } else {
         // Create new
-        const projectId = projectTags.length > 0 ? projectTags[0].project_id : (task as any).project_id;
+        const targetProjectId = projectId || (projectTags.length > 0 ? projectTags[0].project_id : (task as any).project_id);
 
-        if (!projectId) {
+        if (!targetProjectId) {
           toast({ title: "Erro", description: "Não foi possível identificar o projeto.", variant: "destructive" });
           return;
         }
@@ -197,7 +195,7 @@ export const TaskCard = ({
           .insert({
             name: newTaskTag,
             color: newTagColor,
-            project_id: projectId
+            project_id: targetProjectId
           })
           .select()
           .single();
