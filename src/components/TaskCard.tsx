@@ -172,6 +172,10 @@ export const TaskCard = ({
     }
   };
 
+  const [newTaskTag, setNewTaskTag] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#6366f1'); // Default Indigo
+
+  // Enable/Disable Tag Mode
   const createTag = async () => {
     if (!newTaskTag.trim()) return;
     try {
@@ -181,9 +185,6 @@ export const TaskCard = ({
         await toggleTag(existing.id);
       } else {
         // Create new
-        // We need the project ID. Since we are in a task, we might not have it directly on the task object if not joined.
-        // But we have projectTags which have project_id. Let's try to get it from there or fallback.
-        // Ideally the parent should pass projectId. For now assuming projectTags has items or we need another way.
         const projectId = projectTags.length > 0 ? projectTags[0].project_id : (task as any).project_id;
 
         if (!projectId) {
@@ -195,7 +196,7 @@ export const TaskCard = ({
           .from('project_tags')
           .insert({
             name: newTaskTag,
-            color: '#' + Math.floor(Math.random() * 16777215).toString(16), // Random color for now
+            color: newTagColor,
             project_id: projectId
           })
           .select()
@@ -207,6 +208,7 @@ export const TaskCard = ({
         }
       }
       setNewTaskTag('');
+      setNewTagColor('#6366f1'); // Reset color
       onUpdate();
       onTagsUpdate?.();
     } catch (e: any) {
@@ -575,9 +577,16 @@ export const TaskCard = ({
                     })}
 
                     <div className="flex items-center gap-2 w-full mt-2">
+                      <input
+                        type="color"
+                        value={newTagColor}
+                        onChange={(e) => setNewTagColor(e.target.value)}
+                        className="h-7 w-7 rounded border-none cursor-pointer bg-transparent p-0"
+                        title="Cor da etiqueta"
+                      />
                       <Input
                         placeholder="Nova etiqueta..."
-                        className="h-7 text-xs bg-white/5 border-white/10"
+                        className="h-7 text-xs bg-white/5 border-white/10 flex-1"
                         value={newTaskTag}
                         onChange={(e) => setNewTaskTag(e.target.value)}
                         onKeyDown={(e) => {
