@@ -190,9 +190,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Initial check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
+    // Initial check - FIX: Manually set session if exists to avoid race condition
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        console.log('⚡ Sessão restaurada via getSession:', session.user.id);
+        setSession(session);
+        setUser(session.user);
+
+        // Opcional: fazer a verificação de aprovação aqui também para agilizar
+        try {
+          const isApproved = await checkApprovalStatus(session);
+          setApproved(isApproved);
+        } catch (e) {
+          console.error('Erro na verificação inicial de aprovação:', e);
+        } finally {
+          setLoading(false);
+          clearTimeout(safetyTimeout);
+        }
+      } else {
         setLoading(false);
         clearTimeout(safetyTimeout);
       }
