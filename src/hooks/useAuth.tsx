@@ -56,6 +56,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // Safety timeout to prevent infinite loading
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.warn('⚠️ Safety Timeout: Forçando término do carregamento de auth.');
+        setLoading(false);
+        toast({
+          title: "Demora na conexão",
+          description: "O sistema demorou para responder. Verifique sua internet.",
+          variant: "destructive",
+        });
+      }
+    }, 12000); // 12 seconds safety net
+
     let profileSubscription: any = null;
 
     const checkApprovalStatus = async (session: any): Promise<boolean> => {
@@ -64,16 +77,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         console.log(`🔍 Verificando status de aprovação para: ${session.user.id}`);
 
-        // 1. Tenta buscar o perfil
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('approved, role')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+        // Helper timeout promise
+        const dbTimeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout ao buscar perfil')), 10000)
+        );
+
+        // 1. Tenta buscar o perfil (RACE against timeout)
+        const { data: profile, error } = await Promise.race([
+          supabase
+            .from('profiles')
+            .select('approved, role')
+            .eq('user_id', session.user.id)
+            .maybeSingle(),
+          dbTimeout
+        ]) as any;
 
         if (error) {
-          console.error('❌ Erro ao buscar perfil (sem retry):', error);
-          // Retorna false em caso de erro. O setupRealtimeSubscription poderá atualizar depois.
+          console.error('❌ Erro ao buscar perfil:', error);
           return false;
         }
 
@@ -83,11 +103,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           await ensureProfileInternal(session.user.id);
 
           // Busca novamente após criar
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .select('approved')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
+          const { data: newProfile } = await Promise.race([
+            supabase
+              .from('profiles')
+              .select('approved')
+              .eq('user_id', session.user.id)
+              .maybeSingle(),
+            dbTimeout
+          ]) as any;
 
           return newProfile?.approved || false;
         }
@@ -97,7 +120,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       } catch (error) {
         console.error('❌ Erro inesperado em checkApprovalStatus:', error);
-        // Fallback for known admin (safety net)
         if (session.user.email === 'contato@leadsign.com.br') return true;
         return false;
       }
@@ -141,8 +163,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Don't set loading=true on every auth change if we already have a user, to prevent flicker
-          // But we do need to check approval
           if (event === 'INITIAL_SESSION') {
             setLoading(true);
           }
@@ -156,6 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setApproved(false);
           } finally {
             setLoading(false);
+            clearTimeout(safetyTimeout); // Clear safety timeout on success
           }
         } else {
           setApproved(false);
@@ -164,6 +185,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             profileSubscription = null;
           }
           setLoading(false);
+          clearTimeout(safetyTimeout);
         }
       }
     );
@@ -172,10 +194,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         setLoading(false);
+        clearTimeout(safetyTimeout);
       }
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
       if (profileSubscription) {
         profileSubscription.unsubscribe();
