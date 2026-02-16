@@ -253,7 +253,7 @@ const Dashboard = () => {
   const shareProject = async () => {
     if (!shareEmail.trim() || !selectedProjectId) return;
     try {
-      const { data: profile } = await supabase.from('profiles').select('user_id').eq('full_name', shareEmail).maybeSingle();
+      const { data: profile } = await supabase.from('profiles').select('user_id').eq('email', shareEmail).maybeSingle();
       let userId = profile?.user_id;
       if (!userId) { toast({ title: "Usuário não encontrado", variant: "destructive" }); return; }
       const { data: existing } = await supabase.from('project_members').select('id').eq('project_id', selectedProjectId).eq('user_id', userId).maybeSingle();
