@@ -153,6 +153,24 @@ export const TaskCard = ({
     }
   };
 
+  const updatePriority = async (newPriority: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ priority: newPriority })
+        .eq('id', task.id);
+
+      if (error) throw error;
+      onUpdate();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar prioridade",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   const toggleTag = async (tagId: string) => {
     const hasTag = task.tags?.some(t => t.id === tagId);
     try {
@@ -510,12 +528,38 @@ export const TaskCard = ({
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Status & Meta</h4>
                   <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4">
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Prioridade</p>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)}`} />
-                        <span className="text-sm font-bold capitalize">{task.priority}</span>
-                      </div>
+                      <Select value={task.priority} onValueChange={updatePriority}>
+                        <SelectTrigger className="w-full bg-white/5 border-white/10 h-10 shadow-sm transition-all focus:ring-1 focus:ring-primary/50 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)}`} />
+                            <span className="font-bold capitalize">
+                              {task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa'}
+                            </span>
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent className="glass-morphism border-white/10">
+                          <SelectItem value="low" className="cursor-pointer hover:bg-white/5">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-3 h-3 rounded-full ${getPriorityColor('low')}`} />
+                              <span className="font-medium">Baixa</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="medium" className="cursor-pointer hover:bg-white/5">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-3 h-3 rounded-full ${getPriorityColor('medium')}`} />
+                              <span className="font-medium">Média</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="high" className="cursor-pointer hover:bg-white/5">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-3 h-3 rounded-full ${getPriorityColor('high')}`} />
+                              <span className="font-medium">Alta</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter">Criado em</p>
