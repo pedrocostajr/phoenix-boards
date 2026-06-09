@@ -183,10 +183,21 @@ const Dashboard = () => {
       const { data: newP, error: nPError } = await supabase.from('projects').insert([{ name: `${original.name} (Cópia)`, description: original.description, created_by: user.id }]).select().single();
       if (nPError) throw nPError;
 
-      const { data: boards } = await supabase.from('boards').select('*').eq('project_id', projectId);
+      const { data: boards } = await supabase
+        .from('boards')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('position', { ascending: true });
+      
+      let boardIndex = 0;
       for (const board of boards || []) {
-        const { data: newBoard } = await supabase.from('boards').insert([{ name: board.name, project_id: newP.id }]).select().single();
+        const { data: newBoard } = await supabase
+          .from('boards')
+          .insert([{ name: board.name, project_id: newP.id, position: board.position ?? boardIndex }])
+          .select()
+          .single();
         if (!newBoard) continue;
+        boardIndex++;
         const { data: cols } = await supabase.from('board_columns').select('*').eq('board_id', board.id).order('position');
         const colMap: any = {};
         for (const col of cols || []) {

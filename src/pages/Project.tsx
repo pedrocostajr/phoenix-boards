@@ -4,11 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, ArrowLeft, Settings, Users, Calendar, Filter, Trash2, MoreVertical, Edit, ChevronLeft, ChevronRight, Copy } from 'lucide-react';
+import { Plus, ArrowLeft, Settings, Users, Calendar, Filter, Trash2, MoreVertical, Edit, ChevronLeft, ChevronRight, Copy, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -86,6 +86,7 @@ const Project = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
+  const [userProjects, setUserProjects] = useState<any[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
   const [columns, setColumns] = useState<Column[]>([]);
@@ -146,7 +147,7 @@ const Project = () => {
 
   const fetchProjectData = async () => {
     try {
-      const [projectResponse, boardsResponse, tagsResponse] = await Promise.all([
+      const [projectResponse, boardsResponse, tagsResponse, allProjectsResponse] = await Promise.all([
         supabase
           .from('projects')
           .select('*')
@@ -156,11 +157,15 @@ const Project = () => {
           .from('boards')
           .select('*')
           .eq('project_id', projectId)
-          .order('created_at', { ascending: false }),
+          .order('position', { ascending: true }),
         supabase
           .from('project_tags')
           .select('*')
-          .eq('project_id', projectId)
+          .eq('project_id', projectId),
+        supabase
+          .from('projects')
+          .select('id, name')
+          .order('created_at', { ascending: false })
       ]);
 
       if (projectResponse.error) throw projectResponse.error;
@@ -174,6 +179,9 @@ const Project = () => {
         console.log("Tags fetch warning:", tagsResponse.error);
       }
       setProjectTags(tagsResponse.data || []);
+
+      if (allProjectsResponse.error) throw allProjectsResponse.error;
+      setUserProjects(allProjectsResponse.data || []);
 
 
 
@@ -304,7 +312,7 @@ const Project = () => {
     try {
       const { data, error } = await supabase
         .from('boards')
-        .insert([{ name: newBoardName, project_id: projectId }])
+        .insert([{ name: newBoardName, project_id: projectId, position: boards.length }])
         .select()
         .single();
 
@@ -465,7 +473,8 @@ const Project = () => {
         .from('boards')
         .insert([{
           name: `${originalBoard.name} (Cópia)`,
-          project_id: projectId
+          project_id: projectId,
+          position: boards.length
         }])
         .select()
         .single();
@@ -856,6 +865,56 @@ const Project = () => {
     }
   };
 
+  const moveBoard = async (boardId: string, direction: 'left' | 'right') => {
+    const currentBoard = boards.find(b => b.id === boardId);
+    if (!currentBoard) return;
+
+    const sortedBoards = [...boards].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const currentIndex = sortedBoards.findIndex(b => b.id === boardId);
+
+    if (direction === 'left' && currentIndex === 0) return;
+    if (direction === 'right' && currentIndex === sortedBoards.length - 1) return;
+
+    const swapIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+    const swapBoard = sortedBoards[swapIndex];
+
+    // Ensure positions are valid integers
+    const currentPos = currentBoard.position ?? currentIndex;
+    const swapPos = swapBoard.position ?? swapIndex;
+
+    try {
+      // Swap positions
+      await Promise.all([
+        supabase
+          .from('boards')
+          .update({ position: swapPos })
+          .eq('id', currentBoard.id),
+        supabase
+          .from('boards')
+          .update({ position: currentPos })
+          .eq('id', swapBoard.id)
+      ]);
+
+      // Optimistically update local state for fast response
+      setBoards(prev => {
+        const updated = prev.map(b => {
+          if (b.id === currentBoard.id) return { ...b, position: swapPos };
+          if (b.id === swapBoard.id) return { ...b, position: currentPos };
+          return b;
+        });
+        return updated.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      });
+
+      fetchProjectData();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao mover board",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -1079,7 +1138,38 @@ const Project = () => {
                 </Button>
                 <div className="h-8 w-px bg-white/10" />
                 <div className="flex flex-col">
-                  <h1 className="text-2xl font-black tracking-tighter text-white uppercase">{project.name}</h1>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-1.5 text-2xl font-black tracking-tighter text-white uppercase hover:text-primary transition-colors text-left group">
+                        {project.name}
+                        <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-white transition-colors" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="glass-morphism border-white/20 min-w-[220px]">
+                      {userProjects.filter(p => p.id !== project.id).length === 0 ? (
+                        <div className="text-xs text-muted-foreground p-3">Nenhum outro projeto</div>
+                      ) : (
+                        userProjects
+                          .filter(p => p.id !== project.id)
+                          .map((p) => (
+                            <DropdownMenuItem
+                              key={p.id}
+                              onClick={() => navigate(`/project/${p.id}`)}
+                              className="font-bold text-white hover:text-primary hover:bg-white/5 cursor-pointer"
+                            >
+                              {p.name}
+                            </DropdownMenuItem>
+                          ))
+                      )}
+                      <DropdownMenuSeparator className="bg-white/10" />
+                      <DropdownMenuItem
+                        onClick={() => navigate('/dashboard')}
+                        className="font-bold text-muted-foreground hover:text-white hover:bg-white/5 cursor-pointer"
+                      >
+                        Ir para o Dashboard
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   {project.description && (
                     <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest leading-none mt-1">{project.description}</p>
                   )}
@@ -1132,7 +1222,7 @@ const Project = () => {
         <div className="bg-[#15181e] border-b border-white/5">
           <div className="max-w-[1800px] mx-auto px-6 overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-2 py-4">
-              {boards.map((board) => (
+              {boards.map((board, index) => (
                 <div key={board.id} className="flex items-center group/tab">
                   <Button
                     variant="ghost"
@@ -1175,6 +1265,23 @@ const Project = () => {
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Excluir Board
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-white/10" />
+                      <DropdownMenuItem
+                        disabled={index === 0}
+                        onClick={() => moveBoard(board.id, 'left')}
+                        className="cursor-pointer"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        Mover para Esquerda
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={index === boards.length - 1}
+                        onClick={() => moveBoard(board.id, 'right')}
+                        className="cursor-pointer"
+                      >
+                        <ChevronRight className="h-4 w-4 mr-2" />
+                        Mover para Direita
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
