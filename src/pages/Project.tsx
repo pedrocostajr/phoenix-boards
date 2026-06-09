@@ -147,17 +147,31 @@ const Project = () => {
 
   const fetchProjectData = async () => {
     try {
+      const fetchBoards = async () => {
+        let res = await supabase
+          .from('boards')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('position', { ascending: true });
+        
+        if (res.error) {
+          console.warn("Position column not found or error fetching boards, falling back to created_at:", res.error);
+          res = await supabase
+            .from('boards')
+            .select('*')
+            .eq('project_id', projectId)
+            .order('created_at', { ascending: true });
+        }
+        return res;
+      };
+
       const [projectResponse, boardsResponse, tagsResponse, allProjectsResponse] = await Promise.all([
         supabase
           .from('projects')
           .select('*')
           .eq('id', projectId)
           .single(),
-        supabase
-          .from('boards')
-          .select('*')
-          .eq('project_id', projectId)
-          .order('position', { ascending: true }),
+        fetchBoards(),
         supabase
           .from('project_tags')
           .select('*')

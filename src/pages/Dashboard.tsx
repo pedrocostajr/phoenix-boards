@@ -183,11 +183,22 @@ const Dashboard = () => {
       const { data: newP, error: nPError } = await supabase.from('projects').insert([{ name: `${original.name} (Cópia)`, description: original.description, created_by: user.id }]).select().single();
       if (nPError) throw nPError;
 
-      const { data: boards } = await supabase
+      let boardsResponse = await supabase
         .from('boards')
         .select('*')
         .eq('project_id', projectId)
         .order('position', { ascending: true });
+      
+      if (boardsResponse.error) {
+        console.warn("Position column not found or error fetching boards in Dashboard, falling back to created_at:", boardsResponse.error);
+        boardsResponse = await supabase
+          .from('boards')
+          .select('*')
+          .eq('project_id', projectId)
+          .order('created_at', { ascending: true });
+      }
+      
+      const boards = boardsResponse.data;
       
       let boardIndex = 0;
       for (const board of boards || []) {
