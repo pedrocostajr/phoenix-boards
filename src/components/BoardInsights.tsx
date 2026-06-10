@@ -91,33 +91,47 @@ export const BoardInsights = ({
   projectTags
 }: BoardInsightsProps) => {
 
-  // Helper to categorize task status based on its column name or completed boolean
-  const getTaskStatus = (task: Task) => {
-    if (task.completed) return 'completed';
-    const col = columns.find(c => c.id === task.column_id);
-    if (!col) return 'todo';
+  // Helper to check if a column represents a completed state
+  const isCompletedColumn = (columnName: string, columnPosition: number, allCols: Column[]) => {
+    const name = columnName.toLowerCase();
+    const isNameMatch = name.includes('concluid') || name.includes('finaliz') || name.includes('pront') || name.includes('done') || name.includes('entreg');
+    if (isNameMatch) return true;
+    
+    // Fallback: is it the column with the highest position?
+    if (allCols.length > 1) {
+      const maxPosition = Math.max(...allCols.map(c => c.position));
+      return columnPosition === maxPosition;
+    }
+    return false;
+  };
 
-    const name = col.name.toLowerCase();
-    if (name.includes('concluid') || name.includes('finaliz') || name.includes('pront') || name.includes('done') || name.includes('entreg')) {
-      return 'completed';
-    }
-    if (name.includes('progres') || name.includes('andamento') || name.includes('execuc') || name.includes('fazend') || name.includes('doing') || name.includes('desenvolv')) {
-      return 'in_progress';
-    }
-    return 'todo';
+  // Helper to determine if a task is completed
+  const isTaskCompleted = (task: Task) => {
+    if (task.completed) return true;
+    const col = columns.find(c => c.id === task.column_id);
+    return col ? isCompletedColumn(col.name, col.position, columns) : false;
   };
 
   const totalTasks = tasks.length;
   
-  // Tasks by status
-  const todoTasks = tasks.filter(t => getTaskStatus(t) === 'todo');
-  const inProgressTasks = tasks.filter(t => getTaskStatus(t) === 'in_progress');
-  const completedTasks = tasks.filter(t => getTaskStatus(t) === 'completed');
+  // Completed task stats
+  const completedTasksCount = tasks.filter(isTaskCompleted).length;
+  const completedPercentage = totalTasks > 0 ? Math.round((completedTasksCount / totalTasks) * 100) : 0;
 
-  // Percentages
-  const todoPercentage = totalTasks > 0 ? Math.round((todoTasks.length / totalTasks) * 100) : 0;
-  const inProgressPercentage = totalTasks > 0 ? Math.round((inProgressTasks.length / totalTasks) * 100) : 0;
-  const completedPercentage = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0;
+  // Dynamic column calculations
+  const columnData = columns
+    .sort((a, b) => a.position - b.position)
+    .map(col => {
+      const colTasks = tasks.filter(t => t.column_id === col.id);
+      const percentage = totalTasks > 0 ? Math.round((colTasks.length / totalTasks) * 100) : 0;
+      return {
+        id: col.id,
+        name: col.name,
+        value: colTasks.length,
+        percentage,
+        color: col.color || '#6366f1'
+      };
+    });
 
   // Checklist stats
   const boardTaskIds = tasks.map(t => t.id);
@@ -132,25 +146,21 @@ export const BoardInsights = ({
   today.setHours(0, 0, 0, 0);
 
   const overdueTasks = tasks.filter(t => {
-    if (getTaskStatus(t) === 'completed' || !t.due_date) return false;
+    if (isTaskCompleted(t) || !t.due_date) return false;
     const dueDate = new Date(t.due_date);
     return dueDate < today;
   });
 
   const dueSoonTasks = tasks.filter(t => {
-    if (getTaskStatus(t) === 'completed' || !t.due_date) return false;
+    if (isTaskCompleted(t) || !t.due_date) return false;
     const dueDate = new Date(t.due_date);
     const diffTime = dueDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays >= 0 && diffDays <= 3;
   });
 
-  // Recharts: Status distribution data
-  const statusData = [
-    { name: 'Pendente', value: todoTasks.length, percentage: todoPercentage, color: '#ef4444' },
-    { name: 'Em Progresso', value: inProgressTasks.length, percentage: inProgressPercentage, color: '#f59e0b' },
-    { name: 'Concluído', value: completedTasks.length, percentage: completedPercentage, color: '#10b981' }
-  ].filter(d => d.value > 0);
+  // Recharts: Column distribution data (uses actual columns)
+  const statusData = columnData.filter(d => d.value > 0);
 
   // Recharts: Priority data
   const priorityCounts = tasks.reduce((acc: any, task) => {
@@ -166,32 +176,32 @@ export const BoardInsights = ({
     { name: 'Urgente', Quantidade: priorityCounts.urgent, color: '#ef4444' }
   ];
 
-  // Recharts: Member Workload
+  // Recharts: Member Workload by Column
   const memberWorkload = projectMembers.map(member => {
     const memberTasks = tasks.filter(t => t.assigned_to === member.user_id);
-    const todo = memberTasks.filter(t => getTaskStatus(t) === 'todo').length;
-    const inProgress = memberTasks.filter(t => getTaskStatus(t) === 'in_progress').length;
-    const completed = memberTasks.filter(t => getTaskStatus(t) === 'completed').length;
-    
-    return {
+    const workloadItem: any = {
       name: member.full_name?.split(' ')[0] || member.email?.split('@')[0] || 'Membro',
-      'A Fazer': todo,
-      'Em Progresso': inProgress,
-      'Concluído': completed,
       total: memberTasks.length
     };
+    
+    columns.forEach(col => {
+      workloadItem[col.name] = memberTasks.filter(t => t.column_id === col.id).length;
+    });
+    
+    return workloadItem;
   }).filter(m => m.total > 0);
 
-  // Unassigned tasks workload
+  // Unassigned tasks workload by Column
   const unassignedTasks = tasks.filter(t => !t.assigned_to);
   if (unassignedTasks.length > 0) {
-    memberWorkload.push({
+    const unassignedItem: any = {
       name: 'Sem Atribuição',
-      'A Fazer': unassignedTasks.filter(t => getTaskStatus(t) === 'todo').length,
-      'Em Progresso': unassignedTasks.filter(t => getTaskStatus(t) === 'in_progress').length,
-      'Concluído': unassignedTasks.filter(t => getTaskStatus(t) === 'completed').length,
       total: unassignedTasks.length
+    };
+    columns.forEach(col => {
+      unassignedItem[col.name] = unassignedTasks.filter(t => t.column_id === col.id).length;
     });
+    memberWorkload.push(unassignedItem);
   }
 
   // Tags usage counts
@@ -248,7 +258,7 @@ export const BoardInsights = ({
     <div className="space-y-8 p-1 pt-0 pb-16">
       
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         
         {/* Total Tasks Card */}
         <Card className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
@@ -264,56 +274,34 @@ export const BoardInsights = ({
           </CardContent>
         </Card>
 
-        {/* Pending Card */}
-        <Card className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform duration-300">
-            <Clock className="h-14 w-14 text-red-500" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-bold tracking-wider text-muted-foreground">A Fazer</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-red-500">{todoTasks.length}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <Progress value={todoPercentage} className="h-1.5 bg-red-950/20 [&>div]:bg-red-500 flex-1" />
-              <span className="text-[10px] font-bold text-red-400">{todoPercentage}%</span>
+        {/* Dynamic Column Cards */}
+        {columnData.map(col => (
+          <Card key={col.id} className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform duration-300">
+              <Clock className="h-14 w-14" style={{ color: col.color }} />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* In Progress Card */}
-        <Card className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform duration-300">
-            <Activity className="h-14 w-14 text-amber-500" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-bold tracking-wider text-muted-foreground">Em Progresso</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-amber-500">{inProgressTasks.length}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <Progress value={inProgressPercentage} className="h-1.5 bg-amber-950/20 [&>div]:bg-amber-500 flex-1" />
-              <span className="text-[10px] font-bold text-amber-400">{inProgressPercentage}%</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Completed Card */}
-        <Card className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform duration-300">
-            <CheckCircle2 className="h-14 w-14 text-emerald-500" />
-          </div>
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-bold tracking-wider text-muted-foreground">Concluído</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-emerald-500">{completedTasks.length}</div>
-            <div className="flex items-center gap-2 mt-1">
-              <Progress value={completedPercentage} className="h-1.5 bg-emerald-950/20 [&>div]:bg-emerald-500 flex-1" />
-              <span className="text-[10px] font-bold text-emerald-400">{completedPercentage}%</span>
-            </div>
-          </CardContent>
-        </Card>
+            <CardHeader className="pb-2">
+              <CardDescription className="text-xs uppercase font-bold tracking-wider text-muted-foreground truncate" title={col.name}>
+                {col.name}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black" style={{ color: col.color }}>{col.value}</div>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="relative w-full h-1.5 rounded-full overflow-hidden bg-white/5 flex-1">
+                  <div 
+                    className="h-full rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${col.percentage}%`, 
+                      backgroundColor: col.color 
+                    }} 
+                  />
+                </div>
+                <span className="text-[10px] font-bold" style={{ color: col.color }}>{col.percentage}%</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
 
         {/* Checklist Completion Card */}
         <Card className="bg-[#1a1d23]/40 border-white/5 backdrop-blur-xl hover:border-white/10 transition-all duration-300 shadow-md relative overflow-hidden group">
@@ -385,12 +373,12 @@ export const BoardInsights = ({
                 </div>
 
                 {/* Legend list */}
-                <div className="w-full grid grid-cols-3 gap-2 mt-4 text-xs font-semibold">
+                <div className="w-full flex flex-wrap justify-center gap-2 mt-4 text-xs font-semibold">
                   {statusData.map((entry, index) => (
-                    <div key={index} className="flex flex-col items-center p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                    <div key={index} className="flex flex-col items-center p-2 px-3 rounded-xl bg-white/[0.02] border border-white/5 min-w-[100px]">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">{entry.name}</span>
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider truncate max-w-[80px]" title={entry.name}>{entry.name}</span>
                       </div>
                       <span className="text-white font-extrabold text-sm">{entry.value} <span className="text-muted-foreground text-xs font-normal">({entry.percentage}%)</span></span>
                     </div>
@@ -499,9 +487,15 @@ export const BoardInsights = ({
                     iconSize={8}
                     wrapperStyle={{ fontSize: '11px', fontWeight: '600', paddingTop: '10px' }}
                   />
-                  <Bar dataKey="A Fazer" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Em Progresso" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Concluído" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
+                  {columns.map((col, idx) => (
+                    <Bar 
+                      key={col.id} 
+                      dataKey={col.name} 
+                      stackId="a" 
+                      fill={col.color || '#6366f1'} 
+                      radius={idx === columns.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]} 
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             ) : (
