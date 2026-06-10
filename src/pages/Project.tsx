@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, ArrowLeft, Settings, Users, Calendar, Filter, Trash2, MoreVertical, Edit, ChevronLeft, ChevronRight, Copy, ChevronDown } from 'lucide-react';
+import { Plus, ArrowLeft, Settings, Users, Calendar, Filter, Trash2, MoreVertical, Edit, ChevronLeft, ChevronRight, Copy, ChevronDown, BarChart3, Trello } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -18,6 +18,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import { DroppableColumn } from '@/components/DroppableColumn';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TaskCard } from '@/components/TaskCard';
+import { BoardInsights } from '@/components/BoardInsights';
 
 interface Project {
   id: string;
@@ -107,6 +108,7 @@ const Project = () => {
   const [renamingBoardId, setRenamingBoardId] = useState('');
   const [renamingBoardName, setRenamingBoardName] = useState('');
   const { toast } = useToast();
+  const [viewMode, setViewMode] = useState<'kanban' | 'insights'>('kanban');
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -1351,173 +1353,214 @@ const Project = () => {
                   >
                     <Edit className="h-5 w-5" />
                   </Button>
-                  <Badge className="bg-primary/20 text-primary border-primary/30 uppercase font-black tracking-widest text-[10px] py-1 px-3">
-                    Live View
-                  </Badge>
+                  
+                  {/* View Mode Toggle */}
+                  <div className="flex items-center bg-white/5 border border-white/10 rounded-full p-1 ml-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode('kanban')}
+                      className={`h-8 px-4 rounded-full font-bold text-xs transition-all gap-1.5 ${
+                        viewMode === 'kanban'
+                          ? 'bg-primary text-white shadow-lg'
+                          : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Trello className="h-3.5 w-3.5" />
+                      Quadro
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode('insights')}
+                      className={`h-8 px-4 rounded-full font-bold text-xs transition-all gap-1.5 ${
+                        viewMode === 'insights'
+                          ? 'bg-primary text-white shadow-lg'
+                          : 'text-muted-foreground hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" />
+                      Insights
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex gap-4">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="bg-white/5 border-white/10 text-white hover:bg-white/10 rounded-full px-6 font-bold transition-all active:scale-95">
-                        <Plus className="h-5 w-5 mr-2 text-primary" />
-                        Nova Coluna
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="glass-morphism border-white/20">
-                      <DialogHeader>
-                        <DialogTitle className="text-2xl font-black tracking-tight">Criar Nova Coluna</DialogTitle>
-                        <DialogDescription className="text-foreground/60 font-medium">
-                          Adicione uma nova coluna ao board
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-6 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="columnName" className="font-bold text-sm tracking-widest uppercase ml-1">Nome da Coluna</Label>
-                          <Input
-                            id="columnName"
-                            value={newColumnName}
-                            onChange={(e) => setNewColumnName(e.target.value)}
-                            placeholder="Ex: Tarefas Pendentes"
-                            className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="columnColor" className="font-bold text-sm tracking-widest uppercase ml-1">Cor de Destaque</Label>
-                          <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                            <Input
-                              id="columnColor"
-                              type="color"
-                              value={newColumnColor}
-                              onChange={(e) => setNewColumnColor(e.target.value)}
-                              className="w-20 h-10 p-1 bg-transparent border-none"
-                            />
-                            <div className="flex-1 flex items-center bg-white/5 rounded-lg px-4 text-xs font-mono text-muted-foreground uppercase">
-                              {newColumnColor}
-                            </div>
-                          </div>
-                        </div>
-                        <Button onClick={createColumn} className="w-full h-12 bg-primary font-extrabold text-lg rounded-xl shadow-xl shadow-primary/20 transition-all active:scale-95">
-                          Criar Coluna
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
-
-              {/* Kanban Board with Drag & Drop */}
-              <DndContext
-                sensors={sensors}
-                onDragEnd={handleDragEnd}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                collisionDetection={closestCorners}
-              >
-                <div className="h-full overflow-x-auto pb-8 custom-scrollbar">
-                  <div className="flex gap-8 min-w-max h-full px-2 pt-2">
-                    {columns
-                      .sort((a, b) => a.position - b.position)
-                      .map((column, index) => (
-                        <DroppableColumn
-                          key={column.id}
-                          column={column}
-                          tasks={tasks}
-                          checklistItems={checklistItems}
-                          index={index}
-                          totalColumns={columns.length}
-                          onMoveColumn={moveColumn}
-                          onDuplicateColumn={duplicateColumn}
-                          onDeleteColumn={deleteColumn}
-                          onDuplicateTask={duplicateTask}
-                          onDeleteTask={deleteTask}
-                          onUpdateTasks={fetchBoardData}
-                          getPriorityColor={getPriorityColor}
-                          newTaskTitle={newTaskTitle}
-                          setNewTaskTitle={setNewTaskTitle}
-                          newTaskDescription={newTaskDescription}
-                          setNewTaskDescription={setNewTaskDescription}
-                          newTaskPriority={newTaskPriority}
-                          setNewTaskPriority={setNewTaskPriority}
-                          onCreateTask={createTaskInColumn}
-                          projectTags={projectTags}
-                          onTagsUpdate={fetchProjectData}
-                          projectMembers={projectMembers}
-                          projectId={projectId}
-                        />
-                      ))}
-
-                    {/* Add Column Placeholder */}
+                  {viewMode === 'kanban' && (
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button className="w-80 h-[120px] rounded-2xl bg-white/[0.03] border-2 border-dashed border-white/10 hover:border-primary/50 hover:bg-white/[0.05] transition-all duration-300 group/new">
-                          <div className="flex flex-col items-center justify-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover/new:bg-primary/20 group-hover/new:text-primary transition-colors">
-                              <Plus className="h-6 w-6" />
-                            </div>
-                            <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60 group-hover/new:text-primary transition-colors">Nova Coluna</span>
-                          </div>
-                        </button>
+                        <Button variant="outline" className="bg-white/5 border-white/10 text-white hover:bg-white/10 rounded-full px-6 font-bold transition-all active:scale-95">
+                          <Plus className="h-5 w-5 mr-2 text-primary" />
+                          Nova Coluna
+                        </Button>
                       </DialogTrigger>
                       <DialogContent className="glass-morphism border-white/20">
                         <DialogHeader>
-                          <DialogTitle className="text-2xl font-black">Nova Coluna</DialogTitle>
+                          <DialogTitle className="text-2xl font-black tracking-tight">Criar Nova Coluna</DialogTitle>
+                          <DialogDescription className="text-foreground/60 font-medium">
+                            Adicione uma nova coluna ao board
+                          </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-6 py-4">
                           <div className="space-y-2">
-                            <Label htmlFor="columnName" className="font-bold text-xs uppercase tracking-widest ml-1">Nome</Label>
+                            <Label htmlFor="columnName" className="font-bold text-sm tracking-widest uppercase ml-1">Nome da Coluna</Label>
                             <Input
                               id="columnName"
                               value={newColumnName}
                               onChange={(e) => setNewColumnName(e.target.value)}
-                              placeholder="Ex: Em Revisão"
-                              className="bg-white/5 border-white/10"
+                              placeholder="Ex: Tarefas Pendentes"
+                              className="bg-white/5 border-white/10 h-12 rounded-xl focus:border-primary/50"
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="columnColor" className="font-bold text-xs uppercase tracking-widest ml-1">Cor</Label>
-                            <Input
-                              id="columnColor"
-                              type="color"
-                              value={newColumnColor}
-                              onChange={(e) => setNewColumnColor(e.target.value)}
-                              className="w-full h-12 bg-transparent border-white/10"
-                            />
+                            <Label htmlFor="columnColor" className="font-bold text-sm tracking-widest uppercase ml-1">Cor de Destaque</Label>
+                            <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                              <Input
+                                id="columnColor"
+                                type="color"
+                                value={newColumnColor}
+                                onChange={(e) => setNewColumnColor(e.target.value)}
+                                className="w-20 h-10 p-1 bg-transparent border-none"
+                              />
+                              <div className="flex-1 flex items-center bg-white/5 rounded-lg px-4 text-xs font-mono text-muted-foreground uppercase">
+                                {newColumnColor}
+                              </div>
+                            </div>
                           </div>
-                          <Button onClick={createColumn} className="w-full bg-primary font-bold shadow-xl shadow-primary/20">
-                            Confirmar
+                          <Button onClick={createColumn} className="w-full h-12 bg-primary font-extrabold text-lg rounded-xl shadow-xl shadow-primary/20 transition-all active:scale-95">
+                            Criar Coluna
                           </Button>
                         </div>
                       </DialogContent>
                     </Dialog>
-                  </div>
+                  )}
                 </div>
+              </div>
 
-                <DragOverlay dropAnimation={{
-                  sideEffects: defaultDropAnimationSideEffects({
-                    styles: {
-                      active: {
-                        opacity: '0.5',
-                      },
-                    },
-                  }),
-                }}>
-                  {activeTask ? (
-                    <div className="w-80 pointer-events-none rotate-2 scale-105 shadow-2xl">
-                      <TaskCard
-                        task={activeTask}
-                        checklistItems={checklistItems.filter(item => item.task_id === activeTask.id)}
-                        onDuplicate={() => { }}
-                        onDelete={() => { }}
-                        onUpdate={() => { }}
-                        getPriorityColor={getPriorityColor}
-                        projectTags={projectTags}
-                        projectMembers={projectMembers}
-                        projectId={projectId}
-                      />
+              {viewMode === 'kanban' ? (
+                /* Kanban Board with Drag & Drop */
+                <DndContext
+                  sensors={sensors}
+                  onDragEnd={handleDragEnd}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  collisionDetection={closestCorners}
+                >
+                  <div className="h-full overflow-x-auto pb-8 custom-scrollbar">
+                    <div className="flex gap-8 min-w-max h-full px-2 pt-2">
+                      {columns
+                        .sort((a, b) => a.position - b.position)
+                        .map((column, index) => (
+                          <DroppableColumn
+                            key={column.id}
+                            column={column}
+                            tasks={tasks}
+                            checklistItems={checklistItems}
+                            index={index}
+                            totalColumns={columns.length}
+                            onMoveColumn={moveColumn}
+                            onDuplicateColumn={duplicateColumn}
+                            onDeleteColumn={deleteColumn}
+                            onDuplicateTask={duplicateTask}
+                            onDeleteTask={deleteTask}
+                            onUpdateTasks={fetchBoardData}
+                            getPriorityColor={getPriorityColor}
+                            newTaskTitle={newTaskTitle}
+                            setNewTaskTitle={setNewTaskTitle}
+                            newTaskDescription={newTaskDescription}
+                            setNewTaskDescription={setNewTaskDescription}
+                            newTaskPriority={newTaskPriority}
+                            setNewTaskPriority={setNewTaskPriority}
+                            onCreateTask={createTaskInColumn}
+                            projectTags={projectTags}
+                            onTagsUpdate={fetchProjectData}
+                            projectMembers={projectMembers}
+                            projectId={projectId}
+                          />
+                        ))}
+
+                      {/* Add Column Placeholder */}
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <button className="w-80 h-[120px] rounded-2xl bg-white/[0.03] border-2 border-dashed border-white/10 hover:border-primary/50 hover:bg-white/[0.05] transition-all duration-300 group/new">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover/new:bg-primary/20 group-hover/new:text-primary transition-colors">
+                                <Plus className="h-6 w-6" />
+                              </div>
+                              <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60 group-hover/new:text-primary transition-colors">Nova Coluna</span>
+                            </div>
+                          </button>
+                        </DialogTrigger>
+                        <DialogContent className="glass-morphism border-white/20">
+                          <DialogHeader>
+                            <DialogTitle className="text-2xl font-black">Nova Coluna</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-6 py-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="columnName" className="font-bold text-xs uppercase tracking-widest ml-1">Nome</Label>
+                              <Input
+                                id="columnName"
+                                value={newColumnName}
+                                onChange={(e) => setNewColumnName(e.target.value)}
+                                placeholder="Ex: Em Revisão"
+                                className="bg-white/5 border-white/10"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="columnColor" className="font-bold text-xs uppercase tracking-widest ml-1">Cor</Label>
+                              <Input
+                                id="columnColor"
+                                type="color"
+                                value={newColumnColor}
+                                onChange={(e) => setNewColumnColor(e.target.value)}
+                                className="w-full h-12 bg-transparent border-white/10"
+                              />
+                            </div>
+                            <Button onClick={createColumn} className="w-full bg-primary font-bold shadow-xl shadow-primary/20">
+                              Confirmar
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
+                  </div>
+
+                  <DragOverlay dropAnimation={{
+                    sideEffects: defaultDropAnimationSideEffects({
+                      styles: {
+                        active: {
+                          opacity: '0.5',
+                        },
+                      },
+                    }),
+                  }}>
+                    {activeTask ? (
+                      <div className="w-80 pointer-events-none rotate-2 scale-105 shadow-2xl">
+                        <TaskCard
+                          task={activeTask}
+                          checklistItems={checklistItems.filter(item => item.task_id === activeTask.id)}
+                          onDuplicate={() => { }}
+                          onDelete={() => { }}
+                          onUpdate={() => { }}
+                          getPriorityColor={getPriorityColor}
+                          projectTags={projectTags}
+                          projectMembers={projectMembers}
+                          projectId={projectId}
+                        />
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+              ) : (
+                <div className="flex-1 overflow-y-auto px-2 custom-scrollbar">
+                  <BoardInsights
+                    tasks={tasks}
+                    columns={columns}
+                    checklistItems={checklistItems}
+                    projectMembers={projectMembers}
+                    projectTags={projectTags}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
